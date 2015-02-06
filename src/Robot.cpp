@@ -30,8 +30,8 @@ private:
 	TalonSRX *PWMrf = new TalonSRX(2);
 	TalonSRX *PWMrb = new TalonSRX(3);
 
-	CANTalon *lift_R = new CANTalon(3);
-	CANTalon *lift_L = new CANTalon(4);
+	CANTalon *lift_R = new CANTalon(4);
+	CANTalon *lift_L = new CANTalon(3);
 
 	RobotDrive *drive = new RobotDrive(PWMlf,PWMlb,PWMrf,PWMrb);
 	Gyro *gyro = new Gyro(0);
@@ -53,7 +53,7 @@ private:
 	const float maxLiftSpeed = 0.85;
 	const float startSpeed = .2*maxLiftSpeed; // acceleration starts here, skips the slowest part of Smooth Start
 	const float startTime = .3; // How long it takes Smooth Start to reach maxLiftSpeed, in seconds
-	const float increaseSpeed = (maxLiftSpeed - startSpeed)/(startTime / cycleWaitTime );
+	const float increaseSpeed = (maxLiftSpeed - startSpeed)/(startTime / 0.02 );
 	float smoothStart = startSpeed;  // motor value during smooth start
 
 	//driveStick buttons
@@ -77,18 +77,23 @@ private:
 	const int suctionCupsButton = 5;
 	const int pistonButton = 7;
 
-
-	const float correction = 0.3;
+	const float hardCorrection = 1.17;
+	const float correction = 0.15;
 	float correctionDifference = correction*smoothStart;
 	int leftEncoder;
 	int rightEncoder;
 	int gyroValue;
+	const int fakeZero = 50;
 
-	const float speedM = .4; // default testing drivetrain max speed
+	const float speedM = .8; // default testing drivetrain max speed
 
 	void OutputLift(float reverse, float difference = 0) {
-		lift_L->Set(-reverse*(smoothStart - difference));
-		lift_R->Set(reverse*(smoothStart + difference));
+		lift_L->Set(reverse*(smoothStart + difference)*hardCorrection);
+		lift_R->Set(-reverse*(smoothStart - difference));
+	}
+	void OutputLiftRegular(float reverse, float liftSpeed) {
+		lift_L->Set(reverse*liftSpeed);
+		lift_R->Set(-reverse*liftSpeed);
 	}
 
 	void OutputPointTurn(float direction = 1.0, float speedTurn = alignSpeed) {
@@ -160,6 +165,7 @@ private:
 
 	void TeleopPeriodic()
 	{
+
 		// Mecanum drive, no gyro
 		/*
 		rightFront->Set(speedM*(driveStick->GetY() - driveStick->GetZ() - driveStick->GetX()));
@@ -182,7 +188,7 @@ private:
 
 		//Wait(cycleWaitTime);
 
-		gyroValue = (((int)gyro->GetAngle() + 3600000) % 360);
+		gyroValue = ( ((int)gyro->GetAngle() + 3600000) % 360);
 
 		float dir = 1.0; // for reversing turning direction
 
@@ -251,9 +257,9 @@ private:
 
 
 		// elevator lift code
-		correctionDifference = correction*smoothStart;
-		leftEncoder = -1*(liftEncoder_L->Get());
-		rightEncoder = (liftEncoder_R->Get());
+		correctionDifference = correction*smoothStart*std::min((float)abs(leftEncoder-rightEncoder)/50.0 + 0.5,1.0);
+		leftEncoder = -1*(liftEncoder_L->Get())+fakeZero;
+		rightEncoder = (liftEncoder_R->Get())+fakeZero;
 
 
 		if ( (auxStick->GetRawButton(downButton)
@@ -318,14 +324,21 @@ private:
 				OutputLift(1.0);
 			}
 		}
+		else if (driveStick->GetRawButton(5)) { //
+			OutputLiftRegular(1.0, speedM);
+		}
+		else if (driveStick->GetRawButton(7)) {
+			OutputLiftRegular(-1.0, speedM);
+		}
 		else {
 			//				OutputLift(0.0);
 
-			lift_L->Set(speedM*auxStick->GetY()); // defaults to regular joyauxStick control of each lift side
-			lift_R->Set(-speedM*auxStick->GetThrottle());
+			lift_L->Set(-speedM*auxStick->GetY()); // defaults to regular joyauxStick control of each lift side
+			lift_R->Set(speedM*auxStick->GetThrottle());
 
 			smoothStart = startSpeed;
 		}
+
 
 		SmartDashboard::PutNumber("Left Encoder", leftEncoder);
 		SmartDashboard::PutNumber("Right Encoder", rightEncoder);
