@@ -9,7 +9,6 @@ private:
 	LiveWindow *lw;
 
 	Compressor *c = new Compressor(0);
-
 	Solenoid *suctionCups = new Solenoid(0);
 	DoubleSolenoid *piston1 = new DoubleSolenoid(1,2);
 	DoubleSolenoid *piston2 = new DoubleSolenoid(3,4);
@@ -79,7 +78,7 @@ private:
 	const int pistonButton = 7;
 
 
-	const float correction = 0.15;
+	const float correction = 0.2;
 	float correctionDifference = correction*smoothStart;
 	int leftEncoder;
 	int rightEncoder;
@@ -259,9 +258,9 @@ private:
 
 		if ( (auxStick->GetRawButton(downButton)
 				|| (auxStick->GetRawButton(pos1Button) && leftEncoder < 0)
-				|| (auxStick->GetRawButton(pos2Button) && leftEncoder < -toteHeight)
-				|| (auxStick->GetRawButton(pos3Button) && leftEncoder < -toteHeight*2)
-				|| (auxStick->GetRawButton(pos4Button) && leftEncoder < -toteHeight*3))) // move down
+				|| (auxStick->GetRawButton(pos2Button) && leftEncoder < toteHeight)
+				|| (auxStick->GetRawButton(pos3Button) && leftEncoder < toteHeight*2)
+				|| (auxStick->GetRawButton(pos4Button) && leftEncoder < toteHeight*3))) // move down
 						{
 			if (smoothStart < maxLiftSpeed) {
 				smoothStart += increaseSpeed;
@@ -287,12 +286,12 @@ private:
 			else {
 				OutputLift(-1.0);
 			}
-						}
+		}
 		else if (auxStick->GetRawButton(upButton)
 				|| (auxStick->GetRawButton(pos1Button) && leftEncoder > 0)
-				|| (auxStick->GetRawButton(pos2Button) && leftEncoder > -toteHeight)
-				|| (auxStick->GetRawButton(pos3Button) && leftEncoder > -toteHeight*2)
-				|| (auxStick->GetRawButton(pos4Button) && leftEncoder > -toteHeight*3)) // move up
+				|| (auxStick->GetRawButton(pos2Button) && leftEncoder > toteHeight)
+				|| (auxStick->GetRawButton(pos3Button) && leftEncoder > toteHeight*2)
+				|| (auxStick->GetRawButton(pos4Button) && leftEncoder > toteHeight*3)) // move up
 		{
 			if (smoothStart < maxLiftSpeed) {
 				smoothStart += increaseSpeed;
@@ -328,8 +327,8 @@ private:
 			smoothStart = startSpeed;
 		}
 
-		SmartDashboard::PutNumber("Left Encoder", liftEncoder_L->Get());
-		SmartDashboard::PutNumber("Right Encoder", liftEncoder_R->Get());
+		SmartDashboard::PutNumber("Left Encoder", leftEncoder);
+		SmartDashboard::PutNumber("Right Encoder", rightEncoder);
 		SmartDashboard::PutBoolean("Limit", limit->Get());
 	}
 
