@@ -78,7 +78,7 @@ private:
 	const int pistonButton = 7;
 
 
-	const float correction = 0.2;
+	const float correction = 0.3;
 	float correctionDifference = correction*smoothStart;
 	int leftEncoder;
 	int rightEncoder;
