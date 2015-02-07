@@ -1,13 +1,14 @@
 #include "WPILib.h"
 
 // FINAL ROBOT 1 CODE
-// Sam Bernstein & Leo Adberg
+// Sam Bernstein & Leo Adberg 2015 FRC
+// "This game is garbage, and our robot sucks."
 class Robot: public IterativeRobot
 {
 private:
 
 	LiveWindow *lw;
-
+	int stupid;
 	Compressor *c = new Compressor(0);
 	Solenoid *suctionCups = new Solenoid(0);
 	DoubleSolenoid *piston1 = new DoubleSolenoid(1,2);
@@ -316,9 +317,11 @@ private:
 
 
 		// elevator lift code with levels, smooth start and smooth stop
-		correctionDifference = correction*smoothStart*std::min((float)abs(leftEncoder-rightEncoder)/50.0 + 0.5,1.0);
 		leftEncoder = -1*(liftEncoder_L->Get())+fakeZero;
 		rightEncoder = (liftEncoder_R->Get())+fakeZero;
+
+		correctionDifference = correction*smoothStart*std::min((float)abs(leftEncoder-rightEncoder)/50.0 + 0.5,1.0);
+
 
 
 		if ( (auxStick->GetRawButton(downButton)
@@ -397,7 +400,6 @@ private:
 
 			smoothStart = startSpeed;
 		}
-
 
 		SmartDashboard::PutNumber("Left Encoder", leftEncoder);
 		SmartDashboard::PutNumber("Right Encoder", rightEncoder);
