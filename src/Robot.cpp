@@ -229,10 +229,10 @@ private:
 			}
 
 			if (gyroValue > southDegrees) {
-				OutputPointTurn(  (float)dir * (float)std::min((float)(abs((float)northDegrees + (float)360.0 - (float)gyroValue)/((float)alignBufferZone) + (float)minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn(  (float)dir * smoothAlign * (float)std::min((float)(abs((float)northDegrees + (float)360.0 - (float)gyroValue)/((float)alignBufferZone) + (float)minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 			else {
-				OutputPointTurn( (float)(-dir) * (float)std::min((float)abs((float)northDegrees - (float)gyroValue)/(float)alignBufferZone + (float)minAlignMultiplier, (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn( (float)(-dir) * smoothAlign *(float)std::min((float)abs((float)northDegrees - (float)gyroValue)/(float)alignBufferZone + (float)minAlignMultiplier, (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else if (driveStick->GetRawButton(eastButton))
@@ -246,10 +246,10 @@ private:
 
 			if (gyroValue > westDegrees || gyroValue < eastDegrees) {
 				//OutputPointTurn(  (float)dir * (float)std::min( AlignComparison(gyroValue, northDegrees) * (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
-				OutputPointTurn(  (float)dir * (float)std::min((float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn(  (float)dir * smoothAlign *(float)std::min((float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 			else { // if between 90 and 270
-				OutputPointTurn(  (float)(-dir) * (float)std::min( (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn(  (float)(-dir) * smoothAlign *(float)std::min( (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else if (driveStick->GetRawButton(southButton))
@@ -262,10 +262,10 @@ private:
 			}
 
 			if (gyroValue < southDegrees) {
-				OutputPointTurn(  (float)dir * (float)std::min( (float)(abs( (southDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn(  (float)dir * smoothAlign *(float)std::min( (float)(abs( (southDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 			else {
-				OutputPointTurn(  (float)(-dir) * (float)std::min( (float)(abs( (southDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn(  (float)(-dir) * smoothAlign *(float)std::min( (float)(abs( (southDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else if (driveStick->GetRawButton(westButton))
@@ -278,10 +278,10 @@ private:
 			}
 
 			if (gyroValue < westDegrees && gyroValue > eastDegrees) {
-				OutputPointTurn(  (float)dir * (float)std::min( (float)(abs( (westDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn(  (float)dir * smoothAlign * (float)std::min( (float)(abs( (westDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 			else {
-				OutputPointTurn(  (float)(-dir) * (float)std::min( (float)(abs( (westDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn(  (float)(-dir) * smoothAlign * (float)std::min( (float)(abs( (westDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else {
