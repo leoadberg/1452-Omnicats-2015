@@ -38,12 +38,13 @@ private:
 
 	Timer *autonTimer;
 
-	const float cycleWaitTime = .0; // the time it waits between each cycle, in seconds
+	const float cycleWaitTime = .0; // the time it waits between each cycle, in seconds (WE'RE NOT USING THIS)
 	// for stepping through for each subsystem in autonomous
 	int stepDrive = 0;
 	int stepLift = 0;
 	int stepPneumatics = 0;
 
+	// Smooth Start elevator variables
 	const int toteHeight = 517; // number of encoder ticks per 1 encoder height
 	const int stopBuffer = 100; // encoder ticks away from stopping point that smoothStop starts smoothness
 	const int maxHeight = 2650; // encoder ticks from very bottom to very top. This is exact.
@@ -53,8 +54,29 @@ private:
 	const float maxLiftSpeed = 0.85;
 	const float startSpeed = .2*maxLiftSpeed; // acceleration starts here, skips the slowest part of Smooth Start
 	const float startTime = .3; // How long it takes Smooth Start to reach maxLiftSpeed, in seconds
-	const float increaseSpeed = (maxLiftSpeed - startSpeed)/(startTime / 0.02 );
+	const float increaseSpeed = (maxLiftSpeed - startSpeed)/(startTime / 0.02);
 	float smoothStart = startSpeed;  // motor value during smooth start
+
+	const float hardCorrection = 1.17;
+	const float correction = 0.15;
+	float correctionDifference = correction*smoothStart;
+	int leftEncoder;
+	int rightEncoder;
+	int gyroValue;
+	const int fakeZero = 50;
+
+	// Smooth Start 90-Align variables
+	const int northDegrees = 0; // number of encoder ticks per 1 encoder height
+	const int eastDegrees = 90; // encoder ticks away from stopping point that smoothStop starts smoothness
+	const int southDegrees = 180; // encoder ticks from very bottom to very top. This is exact.
+	const int westDegrees = 270; // encoder ticks distance away from top for stopping (it's a safety buffer)
+
+	const float maxAlignSpeed = .3; // don't name ANYTHING this anywhere else or bad stuff will probably happen
+	const float startAlignSpeed = .2*maxAlignSpeed; // acceleration starts here, skips the slowest part of Smooth Start
+	const float startAlignTime = .3; // How long it takes Smooth Start to reach maxAlignSpeed, in seconds
+	const float increaseAlignSpeed = (maxAlignSpeed - startAlignSpeed)/(startAlignTime / 0.02);
+	float smoothAlign = startAlignSpeed;  // motor value during smooth align
+
 
 	//driveStick buttons
 	const int westButton = 1;
@@ -64,7 +86,7 @@ private:
 	const int resetGyroButton = 10;
 	// joysticks are for mecanum Orient Drive
 
-	const static int alignSpeed = .3; // don't name ANYTHING this anywhere else or bad stuff will probably happen
+
 
 	//auxStick buttons
 	const int upButton = 6; // on auxStick
@@ -77,14 +99,6 @@ private:
 	const int suctionCupsButton = 5;
 	const int pistonButton = 7;
 
-	const float hardCorrection = 1.17;
-	const float correction = 0.15;
-	float correctionDifference = correction*smoothStart;
-	int leftEncoder;
-	int rightEncoder;
-	int gyroValue;
-	const int fakeZero = 50;
-
 	const float speedM = .8; // default testing drivetrain max speed
 
 	void OutputLift(float reverse, float difference = 0) {
@@ -96,7 +110,7 @@ private:
 		lift_R->Set(-reverse*liftSpeed);
 	}
 
-	void OutputPointTurn(float direction = 1.0, float speedTurn = alignSpeed) {
+	void OutputPointTurn(float direction = 1.0, float speedTurn = .4) { // for point turning and 90-align
 		rightFront->Set(-direction*speedTurn);
 		rightBack->Set(-direction*speedTurn);
 		leftFront->Set(direction*speedTurn);
@@ -191,14 +205,16 @@ private:
 		gyroValue = ( ((int)gyro->GetAngle() + 3600000) % 360);
 
 		float dir = 1.0; // for reversing turning direction
+		float alignBufferZone = 30.0;
+		float minAlignMultiplier = .1;
 
 		if (driveStick->GetRawButton(northButton)) // north = 0, dir = 1 means clockwise is positive
 		{
 			if (gyroValue > 180) {
-				OutputPointTurn(dir);
+				OutputPointTurn((float)(dir * std::min((float)(abs(northDegrees + 360 - gyroValue)/alignBufferZone + minAlignMultiplier), 1.0)), maxAlignSpeed);
 			}
 			else {
-				OutputPointTurn(-dir);
+				OutputPointTurn((float)(-dir * std::min((float)abs(northDegrees - gyroValue)/alignBufferZone + minAlignMultiplier, 1.0)), maxAlignSpeed);
 			}
 		}
 		else if (driveStick->GetRawButton(eastButton))
