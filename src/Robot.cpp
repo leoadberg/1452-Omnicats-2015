@@ -263,10 +263,10 @@ private:
 
 
 		if ( (auxStick->GetRawButton(downButton)
-				|| (auxStick->GetRawButton(pos1Button) && leftEncoder < 0)
-				|| (auxStick->GetRawButton(pos2Button) && leftEncoder < toteHeight)
-				|| (auxStick->GetRawButton(pos3Button) && leftEncoder < toteHeight*2)
-				|| (auxStick->GetRawButton(pos4Button) && leftEncoder < toteHeight*3))) // move down
+				|| (auxStick->GetRawButton(pos1Button) && leftEncoder > 0)
+				|| (auxStick->GetRawButton(pos2Button) && leftEncoder > toteHeight)
+				|| (auxStick->GetRawButton(pos3Button) && leftEncoder > toteHeight*2)
+				|| (auxStick->GetRawButton(pos4Button) && leftEncoder > toteHeight*3))) // move down
 						{
 			if (smoothStart < maxLiftSpeed) {
 				smoothStart += increaseSpeed;
@@ -277,16 +277,16 @@ private:
 
 			if (leftEncoder > rightEncoder) {
 				OutputLift(-1.0
-						* std::min(abs( (abs(leftEncoder)-toteHeight*(int)auxStick->GetRawButton(pos2Button))/stopBuffer),1)
-				* std::min(abs( (abs(leftEncoder)-2*toteHeight*(int)auxStick->GetRawButton(pos3Button))/stopBuffer),1)
-				* std::min(abs( (abs(leftEncoder)-2*toteHeight*(int)auxStick->GetRawButton(pos4Button))/stopBuffer),1)
+						* std::min(abs((abs(leftEncoder)-toteHeight*(int)auxStick->GetRawButton(pos2Button))/stopBuffer),1)
+				* std::min(abs((abs(leftEncoder)-2*toteHeight*(int)auxStick->GetRawButton(pos3Button))/stopBuffer),1)
+				* std::min(abs((abs(leftEncoder)-2*toteHeight*(int)auxStick->GetRawButton(pos4Button))/stopBuffer),1)
 								, correctionDifference);
 			}
 			else if (leftEncoder < rightEncoder) {
 				OutputLift(-1.0
-						* std::min(abs( (abs(leftEncoder)-toteHeight*(int)auxStick->GetRawButton(pos2Button))/stopBuffer),1)
-				* std::min(abs( (abs(leftEncoder)-2*toteHeight*(int)auxStick->GetRawButton(pos3Button))/stopBuffer),1)
-				* std::min(abs( (abs(leftEncoder)-2*toteHeight*(int)auxStick->GetRawButton(pos4Button))/stopBuffer),1)
+						* std::min(abs((abs(leftEncoder)-toteHeight*(int)auxStick->GetRawButton(pos2Button))/stopBuffer),1)
+				* std::min(abs((abs(leftEncoder)-2*toteHeight*(int)auxStick->GetRawButton(pos3Button))/stopBuffer),1)
+				* std::min(abs((abs(leftEncoder)-2*toteHeight*(int)auxStick->GetRawButton(pos4Button))/stopBuffer),1)
 								, -correctionDifference);
 			}
 			else {
@@ -294,10 +294,10 @@ private:
 			}
 		}
 		else if (auxStick->GetRawButton(upButton)
-				|| (auxStick->GetRawButton(pos1Button) && leftEncoder > 0)
-				|| (auxStick->GetRawButton(pos2Button) && leftEncoder > toteHeight)
-				|| (auxStick->GetRawButton(pos3Button) && leftEncoder > toteHeight*2)
-				|| (auxStick->GetRawButton(pos4Button) && leftEncoder > toteHeight*3)) // move up
+				|| (auxStick->GetRawButton(pos1Button) && leftEncoder < 0)
+				|| (auxStick->GetRawButton(pos2Button) && leftEncoder < toteHeight)
+				|| (auxStick->GetRawButton(pos3Button) && leftEncoder < toteHeight*2)
+				|| (auxStick->GetRawButton(pos4Button) && leftEncoder < toteHeight*3)) // move up
 		{
 			if (smoothStart < maxLiftSpeed) {
 				smoothStart += increaseSpeed;
