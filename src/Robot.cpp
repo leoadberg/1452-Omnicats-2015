@@ -66,10 +66,11 @@ private:
 	const int fakeZero = 50;
 
 	// Smooth Start 90-Align variables
-	const int northDegrees = 0; // number of encoder ticks per 1 encoder height
-	const int eastDegrees = 90; // encoder ticks away from stopping point that smoothStop starts smoothness
-	const int southDegrees = 180; // encoder ticks from very bottom to very top. This is exact.
-	const int westDegrees = 270; // encoder ticks distance away from top for stopping (it's a safety buffer)
+	const float northDegrees = 0.0; // number of encoder ticks per 1 encoder height
+	const float eastDegrees = 90.0; // encoder ticks away from stopping point that smoothStop starts smoothness
+	const float southDegrees = 180.0; // encoder ticks from very bottom to very top. This is exact.
+	const float westDegrees = 270.0; // encoder ticks distance away from top for stopping (it's a safety buffer)
+	const float maxDegrees = 4.0*eastDegrees;
 
 	const float maxAlignSpeed = .3; // don't name ANYTHING this anywhere else or bad stuff will probably happen
 	const float startAlignSpeed = .2*maxAlignSpeed; // acceleration starts here, skips the slowest part of Smooth Start
@@ -77,6 +78,9 @@ private:
 	const float increaseAlignSpeed = (maxAlignSpeed - startAlignSpeed)/(startAlignTime / 0.02);
 	float smoothAlign = startAlignSpeed;  // motor value during smooth align
 
+	float dir = 1.0; // for reversing turning direction
+	float alignBufferZone = 30.0;
+	float minAlignMultiplier = 0.1;
 
 	//driveStick buttons
 	const int westButton = 1;
@@ -110,11 +114,18 @@ private:
 		lift_R->Set(-reverse*liftSpeed);
 	}
 
-	void OutputPointTurn(float direction = 1.0, float speedTurn = .4) { // for point turning and 90-align
+	void OutputPointTurn(float direction, float speedTurn = .4) { // for point turning and 90-align
 		rightFront->Set(-direction*speedTurn);
 		rightBack->Set(-direction*speedTurn);
 		leftFront->Set(direction*speedTurn);
 		leftBack->Set(direction*speedTurn);
+	}
+
+	float AlignComparison(float angleIs, float angleTo) {
+		if (angleIs < angleTo) {
+			return 1.0;
+		}
+		return 0.0;
 	}
 
 	void OutputAllDrive(float velocity = .5) {
@@ -204,23 +215,22 @@ private:
 
 		gyroValue = ( ((int)gyro->GetAngle() + 3600000) % 360);
 
-		float dir = 1.0; // for reversing turning direction
-		float alignBufferZone = 30.0;
-		float minAlignMultiplier = .1;
 
 		if (driveStick->GetRawButton(northButton)) // north = 0, dir = 1 means clockwise is positive
 		{
 			if (gyroValue > 180) {
-				OutputPointTurn((float)(dir * std::min((float)(abs(northDegrees + 360 - gyroValue)/alignBufferZone + minAlignMultiplier), 1.0)), maxAlignSpeed);
+				OutputPointTurn(  (float)dir * (float)std::min((float)(abs((float)northDegrees + (float)360.0 - (float)gyroValue)/((float)alignBufferZone) + (float)minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 			else {
-				OutputPointTurn((float)(-dir * std::min((float)abs(northDegrees - gyroValue)/alignBufferZone + minAlignMultiplier, 1.0)), maxAlignSpeed);
+				OutputPointTurn( (float)-dir * (float)std::min((float)abs((float)northDegrees - (float)gyroValue)/(float)alignBufferZone + (float)minAlignMultiplier, (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else if (driveStick->GetRawButton(eastButton))
 		{
 			if (gyroValue > 270 || gyroValue < 90) {
-				OutputPointTurn(dir);
+				OutputPointTurn(  (float)dir
+					* (float)std::min( AlignComparison(gyroValue, northDegrees) * (float)(abs( (eastDegrees - gyroValue)/((float)alignBufferZone)) + (float)minAlignMultiplier), (float)1.0), (float)maxAlignSpeed)
+					* (float)std::min( AlignComparison(gyroValue, maxDegrees) * (float)(abs( ((float)eastDegrees - (float)gyroValue)/((float)alignBufferZone)) + (float)minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 			else {
 				OutputPointTurn(-dir);
