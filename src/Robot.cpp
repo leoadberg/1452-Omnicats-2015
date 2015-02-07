@@ -62,7 +62,7 @@ private:
 	float correctionDifference = correction*smoothStart;
 	int leftEncoder;
 	int rightEncoder;
-	int gyroValue;
+	float gyroValue;
 	const int fakeZero = 50;
 
 	// Smooth Start 90-Align variables
@@ -105,6 +105,8 @@ private:
 
 	const float speedM = .8; // default testing drivetrain max speed
 
+	int intermediateV;
+
 	void OutputLift(float reverse, float difference = 0) {
 		lift_L->Set(reverse*(smoothStart + difference)*hardCorrection);
 		lift_R->Set(-reverse*(smoothStart - difference));
@@ -121,7 +123,7 @@ private:
 		leftBack->Set(direction*speedTurn);
 	}
 
-	float AlignComparison(float angleIs, float angleTo) {
+	float AlignComparison(float angleIs, float angleTo) { // if first is less than second, return 1.0
 		if (angleIs < angleTo) {
 			return 1.0;
 		}
@@ -212,8 +214,8 @@ private:
 //		rightBack->Set(PWMrb->Get());
 
 		//Wait(cycleWaitTime);
-
-		gyroValue = ( ((int)gyro->GetAngle() + 3600000) % 360);
+		intermediateV = ((int)gyro->GetAngle() + 3600000) % 360;
+		gyroValue = (float)intermediateV; // it's a FLOAT
 
 
 		if (driveStick->GetRawButton(northButton)) // north = 0, dir = 1 means clockwise is positive
@@ -229,8 +231,8 @@ private:
 		{
 			if (gyroValue > 270 || gyroValue < 90) {
 				OutputPointTurn(  (float)dir
-					* (float)std::min( AlignComparison(gyroValue, northDegrees) * (float)(abs( (eastDegrees - gyroValue)/((float)alignBufferZone)) + (float)minAlignMultiplier), (float)1.0), (float)maxAlignSpeed)
-					* (float)std::min( AlignComparison(gyroValue, maxDegrees) * (float)(abs( ((float)eastDegrees - (float)gyroValue)/((float)alignBufferZone)) + (float)minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+					* (float)std::min( AlignComparison(gyroValue, northDegrees) * (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed)
+					* (float)std::min( AlignComparison(gyroValue, maxDegrees) * (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 			else {
 				OutputPointTurn(-dir);
