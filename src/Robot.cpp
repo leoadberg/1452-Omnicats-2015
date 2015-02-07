@@ -11,7 +11,7 @@ private:
 	Compressor *c = new Compressor(0);
 	Solenoid *suctionCups = new Solenoid(0);
 	DoubleSolenoid *piston1 = new DoubleSolenoid(1,2);
-	DoubleSolenoid *piston2 = new DoubleSolenoid(3,4);
+	//DoubleSolenoid *piston2 = new DoubleSolenoid(3,4);
 
 	Joystick *driveStick = new Joystick(0); // only joyauxStick
 	Joystick *auxStick = new Joystick(1);
@@ -64,19 +64,20 @@ private:
 	int rightEncoder;
 	float gyroValue;
 	const int fakeZero = 50;
+	//
 
-	// Smooth Start 90-Align variables
+	// Smooth Start AND Smooth Stop 90-Align variables
 	const float northDegrees = 0.0; // number of encoder ticks per 1 encoder height
 	const float eastDegrees = 90.0; // encoder ticks away from stopping point that smoothStop starts smoothness
 	const float southDegrees = 180.0; // encoder ticks from very bottom to very top. This is exact.
 	const float westDegrees = 270.0; // encoder ticks distance away from top for stopping (it's a safety buffer)
 	const float maxDegrees = 4.0*eastDegrees;
 
-	const float maxAlignSpeed = .3; // don't name ANYTHING this anywhere else or bad stuff will probably happen
+	const float maxAlignSpeed = .4; // don't name ANYTHING this anywhere else or bad stuff will probably happen
 	const float startAlignSpeed = .2*maxAlignSpeed; // acceleration starts here, skips the slowest part of Smooth Start
-	const float startAlignTime = .3; // How long it takes Smooth Start to reach maxAlignSpeed, in seconds
+	const float startAlignTime = .5; // How long it takes Smooth Start to reach maxAlignSpeed, in seconds
 	const float increaseAlignSpeed = (maxAlignSpeed - startAlignSpeed)/(startAlignTime / 0.02);
-	float smoothAlign = startAlignSpeed;  // motor value during smooth align
+	float smoothAlign = startAlignSpeed;  // motor value multiplication during smooth align
 
 	float dir = 1.0; // for reversing turning direction
 	float alignBufferZone = 30.0;
@@ -89,8 +90,6 @@ private:
 	const int northButton = 4;
 	const int resetGyroButton = 10;
 	// joysticks are for mecanum Orient Drive
-
-
 
 	//auxStick buttons
 	const int upButton = 6; // on auxStick
@@ -214,46 +213,75 @@ private:
 //		rightBack->Set(PWMrb->Get());
 
 		//Wait(cycleWaitTime);
+
 		intermediateV = ((int)gyro->GetAngle() + 3600000) % 360;
 		gyroValue = (float)intermediateV; // it's a FLOAT
 
+		// 90-align Smooth Start and Stop
 
 		if (driveStick->GetRawButton(northButton)) // north = 0, dir = 1 means clockwise is positive
 		{
-			if (gyroValue > 180) {
+			if (smoothAlign < maxAlignSpeed) {
+				smoothAlign += increaseAlignSpeed;
+			}
+			else {
+				smoothAlign = maxAlignSpeed;
+			}
+
+			if (gyroValue > southDegrees) {
 				OutputPointTurn(  (float)dir * (float)std::min((float)(abs((float)northDegrees + (float)360.0 - (float)gyroValue)/((float)alignBufferZone) + (float)minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 			else {
-				OutputPointTurn( (float)-dir * (float)std::min((float)abs((float)northDegrees - (float)gyroValue)/(float)alignBufferZone + (float)minAlignMultiplier, (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn( (float)(-dir) * (float)std::min((float)abs((float)northDegrees - (float)gyroValue)/(float)alignBufferZone + (float)minAlignMultiplier, (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else if (driveStick->GetRawButton(eastButton))
 		{
-			if (gyroValue > 270 || gyroValue < 90) {
-				OutputPointTurn(  (float)dir
-					* (float)std::min( AlignComparison(gyroValue, northDegrees) * (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed)
-					* (float)std::min( AlignComparison(gyroValue, maxDegrees) * (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+			if (smoothAlign < maxAlignSpeed) {
+				smoothAlign += increaseAlignSpeed;
 			}
 			else {
-				OutputPointTurn(-dir);
+				smoothAlign = maxAlignSpeed;
+			}
+
+			if (gyroValue > westDegrees || gyroValue < eastDegrees) {
+				//OutputPointTurn(  (float)dir * (float)std::min( AlignComparison(gyroValue, northDegrees) * (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+				OutputPointTurn(  (float)dir * (float)std::min((float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+			}
+			else { // if between 90 and 270
+				OutputPointTurn(  (float)(-dir) * (float)std::min( (float)(abs( (eastDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else if (driveStick->GetRawButton(southButton))
 		{
-			if (gyroValue < 180) {
-				OutputPointTurn(dir);
+			if (smoothAlign < maxAlignSpeed) {
+				smoothAlign += increaseAlignSpeed;
 			}
 			else {
-				OutputPointTurn(-dir);
+				smoothAlign = maxAlignSpeed;
+			}
+
+			if (gyroValue < southDegrees) {
+				OutputPointTurn(  (float)dir * (float)std::min( (float)(abs( (southDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+			}
+			else {
+				OutputPointTurn(  (float)(-dir) * (float)std::min( (float)(abs( (southDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else if (driveStick->GetRawButton(westButton))
 		{
-			if (gyroValue < 270 && gyroValue > 90) {
-				OutputPointTurn(dir);
+			if (smoothAlign < maxAlignSpeed) {
+				smoothAlign += increaseAlignSpeed;
 			}
 			else {
-				OutputPointTurn(-dir);
+				smoothAlign = maxAlignSpeed;
+			}
+
+			if (gyroValue < westDegrees && gyroValue > eastDegrees) {
+				OutputPointTurn(  (float)dir * (float)std::min( (float)(abs( (westDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
+			}
+			else {
+				OutputPointTurn(  (float)(-dir) * (float)std::min( (float)(abs( (westDegrees - gyroValue)/(alignBufferZone)) + minAlignMultiplier), (float)1.0), (float)maxAlignSpeed);
 			}
 		}
 		else {
@@ -262,8 +290,11 @@ private:
 			leftBack->Set(PWMlb->Get());
 			rightFront->Set(PWMrf->Get());
 			rightBack->Set(PWMrb->Get());
+
+			smoothAlign = startAlignSpeed;
 			//OutputAllDrive(0.0);
 		}
+
 
 		// Reset Encoders in elevator
 		if (auxStick->GetRawButton(resetEncodersButton))
@@ -277,14 +308,14 @@ private:
 
 		if (auxStick->GetRawButton(1)){ // pneumatic extender arm acquisition thing
 			piston1->Set(DoubleSolenoid::kForward);
-			piston2->Set(DoubleSolenoid::kForward);
+			//piston2->Set(DoubleSolenoid::kForward);
 		} else {
 			piston1->Set(DoubleSolenoid::kReverse);
-			piston2->Set(DoubleSolenoid::kReverse);
+			//piston2->Set(DoubleSolenoid::kReverse);
 		}
 
 
-		// elevator lift code
+		// elevator lift code with levels, smooth start and smooth stop
 		correctionDifference = correction*smoothStart*std::min((float)abs(leftEncoder-rightEncoder)/50.0 + 0.5,1.0);
 		leftEncoder = -1*(liftEncoder_L->Get())+fakeZero;
 		rightEncoder = (liftEncoder_R->Get())+fakeZero;
