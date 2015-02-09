@@ -1,14 +1,14 @@
 #include "WPILib.h"
 
 // FINAL ROBOT 1 CODE
-// Sam Bernstein & Leo Adberg 2015 FRC
+// Sam Bernstein && Leo Adberg 2015 FRC
 // "This game is garbage, and our robot sucks."
 class Robot: public IterativeRobot
 {
 private:
 
 	LiveWindow *lw;
-	int stupid;
+
 	Compressor *c = new Compressor(0);
 	Solenoid *suctionCups = new Solenoid(0);
 	DoubleSolenoid *piston1 = new DoubleSolenoid(1,2);
@@ -17,9 +17,15 @@ private:
 	Joystick *driveStick = new Joystick(0); // only joyauxStick
 	Joystick *auxStick = new Joystick(1);
 
+	DigitalInput *topLimit_L = new DigitalInput(2); // for stopping elevator at top
+	DigitalInput *bottomLimit_L = new DigitalInput(5); // for stopping elevator at bottom
+
 	DigitalInput *limit = new DigitalInput(2);
 	Encoder *liftEncoder_L = new Encoder(0, 1, true);
 	Encoder *liftEncoder_R = new Encoder(3, 4, true); // newMotorTest encoder
+
+	Encoder *leftFrontEncoder = new Encoder(6, 7, true);
+	Encoder *rightFrontEncoder = new Encoder(8, 9, true);
 
 	CANTalon *leftFront = new CANTalon(1);
 	CANTalon *leftBack = new CANTalon(5);
@@ -40,10 +46,6 @@ private:
 	Timer *autonTimer;
 
 	const float cycleWaitTime = .0; // the time it waits between each cycle, in seconds (WE'RE NOT USING THIS)
-	// for stepping through for each subsystem in autonomous
-	int stepDrive = 0;
-	int stepLift = 0;
-	int stepPneumatics = 0;
 
 	// Smooth Start elevator variables
 	const int toteHeight = 517; // number of encoder ticks per 1 encoder height
@@ -107,6 +109,34 @@ private:
 
 	int intermediateV;
 
+	// for stepping through the steps for each subsystem in autonomous
+	int stepDrive = 0;
+	int stepLift = 0;
+	int stepPneumatics = 0;
+
+	// function global variables:
+	//OutputStraightDrive
+	float speedStraightDrive = .3;
+
+	float leftFrontEncoderAuto = 0;
+	float rightFrontEncoderAuto = 0;
+	float avgDriveEnc = 0;
+
+	bool firstCall = true;
+
+
+	void SetDriveEncAuto() {
+		if (firstCall) {
+			leftFrontEncoderAuto = liftEncoder_L->Get();
+			rightFrontEncoderAuto = liftEncoder_R->Get();
+
+			firstCall = false;
+		}
+
+		avgDriveEnc = 0.5*(leftFrontEncoderAuto  + rightFrontEncoderAuto);
+	}
+
+
 	void OutputLift(float reverse, float difference = 0) {
 		lift_L->Set(reverse*(smoothStart + difference)*hardCorrection);
 		lift_R->Set(-reverse*(smoothStart - difference));
@@ -116,11 +146,33 @@ private:
 		lift_R->Set(-reverse*liftSpeed);
 	}
 
+	void OutputAllDrive(float velocity = .5) {
+		rightFront->Set(velocity);
+		rightBack->Set(velocity);
+		leftFront->Set(velocity);
+		leftBack->Set(velocity);
+	}
+
 	void OutputPointTurn(float direction, float speedTurn = .4) { // for point turning and 90-align
 		rightFront->Set(-direction*speedTurn);
 		rightBack->Set(-direction*speedTurn);
 		leftFront->Set(direction*speedTurn);
 		leftBack->Set(direction*speedTurn);
+	}
+
+	void OutputStraightDrive(float direction, float distance = 1) { // for encoder AUTO go straight forward/backward movements
+		SetDriveEncAuto();
+
+		if (avgDriveEnc < distance) {
+			rightFront->Set(direction*speedStraightDrive);
+			rightBack->Set(direction*speedStraightDrive);
+			leftFront->Set(direction*speedStraightDrive);
+			leftBack->Set(direction*speedStraightDrive);
+		}
+		else {
+			firstCall = true;
+			stepDrive++;
+		}
 	}
 
 	float AlignComparison(float angleIs, float angleTo) { // if first is less than second, return 1.0
@@ -130,12 +182,7 @@ private:
 		return 0.0;
 	}
 
-	void OutputAllDrive(float velocity = .5) {
-		rightFront->Set(velocity);
-		rightBack->Set(velocity);
-		leftFront->Set(velocity);
-		leftBack->Set(velocity);
-	}
+
 
 	void RobotInit()
 	{
@@ -155,12 +202,31 @@ private:
 
 	void AutonomousPeriodic()
 	{
+		intermediateV = ((int)gyro->GetAngle() + 3600000) % 360;
+		gyroValue = (float)intermediateV; // it's a FLOAT
+
+		// for drivetrain
 		switch (stepDrive)
 		{
 		case 0:
 
 			if (autonTimer->Get() > 1.0){
 				stepDrive++;
+			}
+			break;
+		default:
+			while (autonTimer->Get() < 15.0){
+
+			}
+		}
+
+		// for elevator
+		switch (stepLift)
+		{
+		case 0:
+
+			if (autonTimer->Get() > 1.0){
+				stepLift++;
 			}
 			break;
 		default:
@@ -317,14 +383,44 @@ private:
 
 
 		// elevator lift code with levels, smooth start and smooth stop
-		leftEncoder = -1*(liftEncoder_L->Get())+fakeZero;
-		rightEncoder = (liftEncoder_R->Get())+fakeZero;
+		leftEncoder = -1*(liftEncoder_L->Get()) + fakeZero;
+		rightEncoder = (liftEncoder_R->Get()) + fakeZero;
 
 		correctionDifference = correction*smoothStart*std::min((float)abs(leftEncoder-rightEncoder)/50.0 + 0.5,1.0);
 
 
+		if ( !(topLimit_L->Get()) && (auxStick->GetRawButton(upButton)
+				|| (auxStick->GetRawButton(pos1Button) && leftEncoder < 0)
+				|| (auxStick->GetRawButton(pos2Button) && leftEncoder < toteHeight)
+				|| (auxStick->GetRawButton(pos3Button) && leftEncoder < toteHeight*2)
+				|| (auxStick->GetRawButton(pos4Button) && leftEncoder < toteHeight*3))) // move up
+		{
+			if (smoothStart < maxLiftSpeed) {
+				smoothStart += increaseSpeed;
+			}
+			else {
+				smoothStart = maxLiftSpeed;
+			}
 
-		if ( (auxStick->GetRawButton(downButton)
+			if (leftEncoder < rightEncoder) {
+				OutputLift(1.0
+						* std::min(abs( (abs(leftEncoder)-(maxHeight - (maxHeight - toteHeight)*(int)auxStick->GetRawButton(pos2Button)))/stopBuffer),1)
+				* std::min(abs((abs(leftEncoder)-(2*maxHeight - (2*maxHeight - 2*toteHeight)*(int)auxStick->GetRawButton(pos3Button)))/stopBuffer),1)
+				* std::min(abs((abs(leftEncoder)-(2*maxHeight - (2*maxHeight - 3*toteHeight)*(int)auxStick->GetRawButton(pos4Button)))/stopBuffer),1)
+								, correctionDifference);
+			}
+			else if (leftEncoder > rightEncoder) {
+				OutputLift(1.0
+						* std::min(abs( (abs(leftEncoder)-(maxHeight - (maxHeight - toteHeight)*(int)auxStick->GetRawButton(pos2Button)) )/stopBuffer),1)
+				* std::min(abs((abs(leftEncoder)-(2*maxHeight - (2*maxHeight - 2*toteHeight)*(int)auxStick->GetRawButton(pos3Button)))/stopBuffer),1)
+				* std::min(abs((abs(leftEncoder)-(2*maxHeight - (2*maxHeight - 3*toteHeight)*(int)auxStick->GetRawButton(pos4Button)))/stopBuffer),1)
+								, -correctionDifference);
+			}
+			else {
+				OutputLift(1.0);
+			}
+		}
+		else if ( !(bottomLimit_L->Get()) && (auxStick->GetRawButton(downButton)
 				|| (auxStick->GetRawButton(pos1Button) && leftEncoder > 0)
 				|| (auxStick->GetRawButton(pos2Button) && leftEncoder > toteHeight)
 				|| (auxStick->GetRawButton(pos3Button) && leftEncoder > toteHeight*2)
@@ -355,41 +451,11 @@ private:
 				OutputLift(-1.0);
 			}
 		}
-		else if (auxStick->GetRawButton(upButton)
-				|| (auxStick->GetRawButton(pos1Button) && leftEncoder < 0)
-				|| (auxStick->GetRawButton(pos2Button) && leftEncoder < toteHeight)
-				|| (auxStick->GetRawButton(pos3Button) && leftEncoder < toteHeight*2)
-				|| (auxStick->GetRawButton(pos4Button) && leftEncoder < toteHeight*3)) // move up
-		{
-			if (smoothStart < maxLiftSpeed) {
-				smoothStart += increaseSpeed;
-			}
-			else {
-				smoothStart = maxLiftSpeed;
-			}
 
-			if (leftEncoder < rightEncoder) {
-				OutputLift(1.0
-						* std::min(abs( (abs(leftEncoder)-(maxHeight - (maxHeight - toteHeight)*(int)auxStick->GetRawButton(pos2Button)))/stopBuffer),1)
-				* std::min(abs((abs(leftEncoder)-(2*maxHeight - (2*maxHeight - 2*toteHeight)*(int)auxStick->GetRawButton(pos3Button)))/stopBuffer),1)
-				* std::min(abs((abs(leftEncoder)-(2*maxHeight - (2*maxHeight - 3*toteHeight)*(int)auxStick->GetRawButton(pos4Button)))/stopBuffer),1)
-								, correctionDifference);
-			}
-			else if (leftEncoder > rightEncoder) {
-				OutputLift(1.0
-						* std::min(abs( (abs(leftEncoder)-(maxHeight - (maxHeight - toteHeight)*(int)auxStick->GetRawButton(pos2Button)) )/stopBuffer),1)
-				* std::min(abs((abs(leftEncoder)-(2*maxHeight - (2*maxHeight - 2*toteHeight)*(int)auxStick->GetRawButton(pos3Button)))/stopBuffer),1)
-				* std::min(abs((abs(leftEncoder)-(2*maxHeight - (2*maxHeight - 3*toteHeight)*(int)auxStick->GetRawButton(pos4Button)))/stopBuffer),1)
-								, -correctionDifference);
-			}
-			else {
-				OutputLift(1.0);
-			}
-		}
-		else if (driveStick->GetRawButton(5)) { //
+		else if (!(topLimit_L->Get()) && driveStick->GetRawButton(5)) { // move up
 			OutputLiftRegular(1.0, speedM);
 		}
-		else if (driveStick->GetRawButton(7)) {
+		else if (!(bottomLimit_L->Get()) && driveStick->GetRawButton(7)) {
 			OutputLiftRegular(-1.0, speedM);
 		}
 		else {
