@@ -104,8 +104,8 @@ private:
 	const int southButton = 2;
 	const int eastButton = 3;
 	const int northButton = 4;
-	const int acqStart_L = 10; // change
-	const int acqStart_R = 11; // change
+	const float acqStart_L = 180.0; // change
+	const float acqStart_R = 0.0; // change
 	const int acqStop = 9;
 	const int resetGyroButton = 10;
 	// joysticks are for mecanum Orient Drive
@@ -488,12 +488,12 @@ private:
 		l_backEncoder = leftBackEncoder->Get();
 
 		// 90-align Smooth Start and Stop
-		if (driveStick->GetRawButton(acqStart_L)) {
+		if (driveStick->GetTwist() == acqStart_L) {
 			acqRunning = 1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
-		else if (driveStick->GetRawButton(acqStart_R)) {
+		else if (driveStick->GetTwist() == acqStart_R) {
 			acqRunning = -1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
