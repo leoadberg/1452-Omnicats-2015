@@ -132,16 +132,26 @@ private:
 
 	bool firstCall = true;
 
-	// AcqRoutine: acquisition routine
+	// AcqGetTote: actually grab, suck and bring in tote
 
+	Timer *getToteTimer;
+	int stepGetTote = 0;
+	float getToteLastTime = 0.0;
+	const float getToteSuckTime = 0.3;
+	const float getToteExtendTime = 2.0;
+
+
+	// AcqRoutine: acquisition routine
 	int stepAcq = 0;
 	bool acqRunning = false;
 	float ultrasonic_L_dist = 0.0;
 	float r_FrontEncoder_1 = 0.0;
-	const float closerTote_dist = 13.0;
+	const float closerTote_dist = 13.0; // inches, for recognizing that ultrasonic has reached edge of tote (depth)
 	const float acqStrafeSpeed = 0.4;
+	const float toteDepth_dist = 24.0; // inches, for optimal distance away from tote for acquisition (depth)
+	const float toteDepth_range = 2.5; // inches, tolerance for getting within range of tote
 
-	float levelAlign_dist = 4.0; // inches
+	float levelAlign_dist = 4.0; // inches to the side robot must strafe to line up with tote levels
 
 
 	void SetDriveEncAuto() {
@@ -202,8 +212,94 @@ private:
 		leftFront->Set(-direction*speedStrafe);
 	}
 
-	void AutoForward() // the most basic default AUTO routine
-	{
+	bool AcqGetTote() {
+		switch(stepGetTote)
+		{
+		case 0:
+			getToteTimer = new Timer();
+			getToteTimer->Reset();
+			getToteTimer->Start();
+			suctionCups->Set(true);
+			if (getToteTimer->Get() > getToteSuckTime) {
+				stepGetTote++;
+				getToteLastTime += getToteTimer->Get();
+			}
+			break;
+
+		case 1:
+			piston1->Set(DoubleSolenoid::kForward);
+			if (getToteTimer->Get() > getToteLastTime + getToteExtendTime) {
+				stepGetTote++;
+				getToteLastTime += getToteTimer->Get();
+			}
+			break;
+
+		case 2: // retract with tote
+			piston1->Set(DoubleSolenoid::kReverse);
+			if (getToteTimer->Get() > getToteLastTime + 2.0*getToteExtendTime) { // takes longer to retract
+				stepGetTote = 0;
+				getToteLastTime = 0; // reset to 0 for next run
+				return true;
+			}
+			break;
+		}
+		return false;
+	}
+
+	void AcqInitialize() {
+		ultrasonic_L_dist = ultrasonic_L->GetRangeInches();
+		stepAcq = 0; // reset to first step
+	}
+
+	void AcqRoutine() {
+
+		switch (stepAcq)
+		{
+		case 0: // strafe right until ultrasonic sees tote
+			OutputStrafe(1.0, acqStrafeSpeed); // strafe right
+			if (ultrasonic_L->GetRangeInches() < ultrasonic_L_dist - closerTote_dist){
+				r_FrontEncoder_1 = rightFrontEncoder->Get(); // set encoder for reference for next part
+				stepAcq++;
+			}
+			break;
+		case 1: // strafe right to align with levels
+			OutputStrafe(1.0, acqStrafeSpeed);
+			if (r_frontEncoder > r_FrontEncoder_1 + levelAlign_dist) {
+				stepAcq++;
+			}
+			break;
+		case 2: // move backward/forward until right distance
+			OutputStraightDrive(1.0, acqStrafeSpeed);
+			if (abs(ultrasonic_L->GetRangeInches() - toteDepth_dist) < toteDepth_range) {
+				stepAcq++;
+			}
+			break;
+		case 3:
+			OutputAllDrive(0.0); // stop drive train
+			Wait(.4);
+			stepAcq++;
+			break;
+		case 4:
+			if (AcqGetTote()) { // run AcqGetTote, if done, end everything and reset
+				acqRunning = false;
+			}
+			break;
+
+		default:
+			while (autonTimer->Get() < 15.0){
+
+			}
+		}
+	}
+
+	float AlignComparison(float angleIs, float angleTo) { // if first is less than second, return 1.0
+		if (angleIs < angleTo) {
+			return 1.0;
+		}
+		return 0.0;
+	}
+
+	void AutoForward() { // the most basic default AUTO routine
 		switch (stepDrive) // for drive train
 		{
 		case 0:
@@ -227,59 +323,16 @@ private:
 		switch (stepLift) // for elevator
 		{
 		case 0:
-
 			if (autonTimer->Get() > 15.0){
 				stepLift++;
 			}
 			break;
+
 		default:
-			while (autonTimer->Get() < 15.0){
+			while (autonTimer->Get() < 15.0) {
 
 			}
 		}
-
-	}
-	void AcqInitialize() {
-		ultrasonic_L_dist = ultrasonic_L->GetRangeInches();
-		stepAcq = 0; // reset to first step
-	}
-
-	void AcqRoutine() {
-
-		switch (stepAcq)
-		{
-		case 0: // strafe right until ultrasonic sees tote
-			OutputStrafe(1.0, acqStrafeSpeed); // strafe right
-			if (ultrasonic_L->GetRangeInches() < ultrasonic_L_dist - closerTote_dist){
-				r_FrontEncoder_1 = rightFrontEncoder->Get(); // set encoder for reference for next part
-				stepAcq++;
-			}
-			break;
-		case 1: // strafe right to align with levels
-			OutputStrafe(1.0, acqStrafeSpeed);
-			if (r_frontEncoder > r_FrontEncoder_1 + levelAlign_dist) {
-				stepAcq++;
-			}
-		case 2: // move backward/forward until right distance
-			OutputStraightDrive(1.0, acqStrafeSpeed);
-			if (r_frontEncoder > r_FrontEncoder_1 + levelAlign_dist) {
-				stepAcq++;
-			}
-		default:
-			while (autonTimer->Get() < 15.0){
-
-			}
-		}
-
-
-		acqRunning = false;
-	}
-
-	float AlignComparison(float angleIs, float angleTo) { // if first is less than second, return 1.0
-		if (angleIs < angleTo) {
-			return 1.0;
-		}
-		return 0.0;
 	}
 
 	void RobotInit()
@@ -292,6 +345,20 @@ private:
 	{
 		//testEncoder->Reset();
 		//int step = 0;
+
+		if (SmartDashboard::GetBoolean("New Name", false)) {
+			autoNumber = 1;
+		}
+		else if (SmartDashboard::GetBoolean("DB/Button2", false)) {
+			autoNumber = 2;
+		}
+		else if (SmartDashboard::GetBoolean("DB/Button3", false)) {
+			autoNumber = 3;
+		}
+		else if (SmartDashboard::GetBoolean("DB/Button4", false)) {
+			autoNumber = 4;
+		}
+
 		autonTimer = new Timer();
 		autonTimer->Start();
 		gyroValue = 0;
@@ -308,7 +375,11 @@ private:
 		{
 		case 0:
 			AutoForward();
+			break;
 
+		case 1:
+			AutoForward();
+			break;
 		}
 		SmartDashboard::PutNumber("Left Encoder", liftEncoder_L->Get());
 		SmartDashboard::PutNumber("Right Encoder", liftEncoder_R->Get());
@@ -372,16 +443,18 @@ private:
 		// 90-align Smooth Start and Stop
 		if (driveStick->GetRawButton(acqStart)) {
 			acqRunning = true;
+			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
 
 		if (driveStick->GetRawButton(acqStop)) {
 			acqRunning = false;
+			stepAcq = 0;
+			stepGetTote = 0;
 		}
 
 		if (acqRunning) {
-
-
+			AcqRoutine();
 		}
 		else
 		{
