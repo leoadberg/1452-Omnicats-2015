@@ -20,13 +20,16 @@ private:
 	DigitalInput *topLimit_L = new DigitalInput(2); // for stopping elevator at top
 	DigitalInput *bottomLimit_L = new DigitalInput(7); // for stopping elevator at bottom
 
-	Ultrasonic *ultrasonic_L = new Ultrasonic(11, 12); // CHANGE PORTS FOR NEW BREADBOARD
+	Ultrasonic *ultrasonic_L = new Ultrasonic(6, 7); // CHANGE PORTS
+	Ultrasonic *ultrasonic_R = new Ultrasonic(13, 14); // CHANGE PORTS
 
 	Encoder *liftEncoder_L = new Encoder(0, 1, true);
 	Encoder *liftEncoder_R = new Encoder(3, 4, true); // newMotorTest encoder
 
 	Encoder *leftFrontEncoder = new Encoder(5, 6, true);
-	Encoder *rightFrontEncoder = new Encoder(8, 9, true);
+	Encoder *rightFrontEncoder = new Encoder(7, 8, true);
+	Encoder *leftBackEncoder = new Encoder(9, 10, true);
+	Encoder *rightBackEncoder = new Encoder(11, 12, true);
 
 	CANTalon *leftFront = new CANTalon(1);
 	CANTalon *leftBack = new CANTalon(5);
@@ -66,8 +69,12 @@ private:
 	float correctionDifference = correction*smoothStart;
 	int l_LiftEncoder;
 	int r_LiftEncoder;
+
 	int r_frontEncoder;
 	int l_frontEncoder;
+	int r_backEncoder;
+	int l_backEncoder;
+
 	float driveInchesPerTick = .4;
 
 	int intermediateGyro;
@@ -97,7 +104,8 @@ private:
 	const int southButton = 2;
 	const int eastButton = 3;
 	const int northButton = 4;
-	const int acqStart = 10;
+	const int acqStart_L = 10; // change
+	const int acqStart_R = 11; // change
 	const int acqStop = 9;
 	const int resetGyroButton = 10;
 	// joysticks are for mecanum Orient Drive
@@ -132,20 +140,31 @@ private:
 
 	bool firstCall = true;
 
-	// AcqGetTote: actually grab, suck and bring in tote
-
+	// AcqGetTote:  grab, suck and bring in tote
 	Timer *getToteTimer;
 	int stepGetTote = 0;
 	float getToteLastTime = 0.0;
 	const float getToteSuckTime = 0.3;
 	const float getToteExtendTime = 2.0;
 
-
 	// AcqRoutine: acquisition routine
 	int stepAcq = 0;
-	bool acqRunning = false;
+	int acqRunning = 0; // 0 is not running, -1 is starting from right, 1 is starting from left
 	float ultrasonic_L_dist = 0.0;
+	float ultrasonic_R_dist = 0.0;
+
 	float r_FrontEncoder_1 = 0.0;
+	float l_FrontEncoder_1 = 0.0;
+	float r_BackEncoder_1 = 0.0;
+	float l_BackEncoder_1 = 0.0;
+
+	float r_FrontDelta = 0.0;
+	float l_FrontDelta = 0.0;
+	float r_BackDelta = 0.0;
+	float l_BackDelta = 0.0;
+
+	float avgStrafeTicks = 0.0;
+
 	const float closerTote_dist = 13.0; // inches, for recognizing that ultrasonic has reached edge of tote (depth)
 	const float acqStrafeSpeed = 0.4;
 	const float toteDepth_dist = 24.0; // inches, for optimal distance away from tote for acquisition (depth)
@@ -248,6 +267,7 @@ private:
 
 	void AcqInitialize() {
 		ultrasonic_L_dist = ultrasonic_L->GetRangeInches();
+		ultrasonic_R_dist = ultrasonic_R->GetRangeInches();
 		stepAcq = 0; // reset to first step
 	}
 
@@ -256,15 +276,40 @@ private:
 		switch (stepAcq)
 		{
 		case 0: // strafe right until ultrasonic sees tote
-			OutputStrafe(1.0, acqStrafeSpeed); // strafe right
-			if (ultrasonic_L->GetRangeInches() < ultrasonic_L_dist - closerTote_dist){
-				r_FrontEncoder_1 = rightFrontEncoder->Get(); // set encoder for reference for next part
-				stepAcq++;
+			OutputStrafe((float)acqRunning, acqStrafeSpeed); // strafe right
+
+			if (acqRunning == 1) // from left side
+			{
+				if (ultrasonic_L->GetRangeInches() < ultrasonic_L_dist - closerTote_dist) {
+					r_FrontEncoder_1 = rightFrontEncoder->Get(); // store each encoder for reference for next step
+					l_FrontEncoder_1 = leftFrontEncoder->Get();
+					r_BackEncoder_1 = rightBackEncoder->Get();
+					l_BackEncoder_1 = leftBackEncoder->Get();
+					stepAcq++;
+				}
+			}
+			else // from right side
+			{
+				if (ultrasonic_R->GetRangeInches() < ultrasonic_R_dist - closerTote_dist) {
+					r_FrontEncoder_1 = rightFrontEncoder->Get(); // store each encoder for reference for next step
+					l_FrontEncoder_1 = leftFrontEncoder->Get();
+					r_BackEncoder_1 = rightBackEncoder->Get();
+					l_BackEncoder_1 = leftBackEncoder->Get();
+					stepAcq++;
+				}
 			}
 			break;
 		case 1: // strafe right to align with levels
-			OutputStrafe(1.0, acqStrafeSpeed);
-			if (r_frontEncoder > r_FrontEncoder_1 + levelAlign_dist) {
+			OutputStrafe(float(acqRunning), acqStrafeSpeed);
+
+			r_FrontDelta = abs(rightFrontEncoder->Get() - r_FrontEncoder_1);
+			l_FrontDelta = abs(leftFrontEncoder->Get() - l_FrontEncoder_1);
+			r_BackDelta = abs(rightBackEncoder->Get() - r_BackEncoder_1);
+			l_BackDelta = abs(leftBackEncoder->Get() - l_BackEncoder_1);
+
+			avgStrafeTicks = 0.25*(r_FrontDelta + l_FrontDelta + r_BackDelta + l_BackDelta);
+
+			if (avgStrafeTicks*driveInchesPerTick > levelAlign_dist) {
 				stepAcq++;
 			}
 			break;
@@ -281,7 +326,7 @@ private:
 			break;
 		case 4:
 			if (AcqGetTote()) { // run AcqGetTote, if done, end everything and reset
-				acqRunning = false;
+				acqRunning = 0;
 			}
 			break;
 
@@ -439,21 +484,28 @@ private:
 
 		r_frontEncoder = rightFrontEncoder->Get();
 		l_frontEncoder = leftFrontEncoder->Get();
+		r_backEncoder = rightBackEncoder->Get();
+		l_backEncoder = leftBackEncoder->Get();
 
 		// 90-align Smooth Start and Stop
-		if (driveStick->GetRawButton(acqStart)) {
-			acqRunning = true;
+		if (driveStick->GetRawButton(acqStart_L)) {
+			acqRunning = 1;
+			stepAcq = 0; // reset to beginning of routine
+			AcqInitialize();
+		}
+		else if (driveStick->GetRawButton(acqStart_R)) {
+			acqRunning = -1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
 
 		if (driveStick->GetRawButton(acqStop)) {
-			acqRunning = false;
+			acqRunning = 0;
 			stepAcq = 0;
 			stepGetTote = 0;
 		}
 
-		if (acqRunning) {
+		if (acqRunning != 0) {
 			AcqRoutine();
 		}
 		else
@@ -637,9 +689,8 @@ private:
 
 		}
 
-
-		SmartDashboard::PutNumber("Left Encoder", l_LiftEncoder);
-		SmartDashboard::PutNumber("Right Encoder", r_LiftEncoder);
+		SmartDashboard::PutNumber("Left lift Enc", l_LiftEncoder);
+		SmartDashboard::PutNumber("Right lift Enc", r_LiftEncoder);
 		SmartDashboard::PutBoolean("Left Ultrasonic", ultrasonic_L->GetRangeInches());
 	}
 
