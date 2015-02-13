@@ -68,6 +68,9 @@ private:
 	int r_LiftEncoder;
 	int r_frontEncoder;
 	int l_frontEncoder;
+	float driveInchesPerTick = .4;
+
+	int intermediateGyro;
 	float gyroValue;
 	const int fakeZero = 50;
 	//
@@ -112,8 +115,8 @@ private:
 
 	const float speedM = .8; // default testing drivetrain max speed
 
-	int intermediateV;
 
+	int autoNumber = 0;
 	// for stepping through the steps for each subsystem in autonomous
 	int stepDrive = 0;
 	int stepLift = 0;
@@ -143,8 +146,8 @@ private:
 
 	void SetDriveEncAuto() {
 		if (firstCall) {
-			leftFrontEncoderAuto = liftEncoder_L->Get();
-			rightFrontEncoderAuto = liftEncoder_R->Get();
+			leftFrontEncoderAuto = leftFrontEncoder->Get();
+			rightFrontEncoderAuto = rightFrontEncoder->Get();
 
 			firstCall = false;
 		}
@@ -176,10 +179,10 @@ private:
 		leftBack->Set(direction*speedTurn);
 	}
 
-	void OutputStraightDrive(float direction, float distance = 1) { // for encoder AUTO go straight forward/backward movements
+	void OutputStraightDrive(float direction, float distance = 1.0) { // for encoder AUTO go straight forward/backward movements
 		SetDriveEncAuto();
 
-		if (avgDriveEnc < distance) {
+		if (avgDriveEnc*driveInchesPerTick < distance) {
 			rightFront->Set(direction*speedStraightDrive);
 			rightBack->Set(direction*speedStraightDrive);
 			leftFront->Set(direction*speedStraightDrive);
@@ -199,6 +202,43 @@ private:
 		leftFront->Set(-direction*speedStrafe);
 	}
 
+	void AutoForward() // the most basic default AUTO routine
+	{
+		switch (stepDrive) // for drive train
+		{
+		case 0:
+			OutputStraightDrive(1.0, 4.0);
+			if (autonTimer->Get() > 15.0){
+				stepDrive++;
+			}
+			break;
+		case 1:
+			OutputAllDrive(0.0);
+			if (autonTimer->Get() > 15.0) {
+				stepDrive++;
+			}
+			break;
+		default:
+			while (autonTimer->Get() < 15.0){
+
+			}
+		}
+
+		switch (stepLift) // for elevator
+		{
+		case 0:
+
+			if (autonTimer->Get() > 15.0){
+				stepLift++;
+			}
+			break;
+		default:
+			while (autonTimer->Get() < 15.0){
+
+			}
+		}
+
+	}
 	void AcqInitialize() {
 		ultrasonic_L_dist = ultrasonic_L->GetRangeInches();
 		stepAcq = 0; // reset to first step
@@ -233,9 +273,6 @@ private:
 
 
 		acqRunning = false;
-
-
-
 	}
 
 	float AlignComparison(float angleIs, float angleTo) { // if first is less than second, return 1.0
@@ -245,13 +282,11 @@ private:
 		return 0.0;
 	}
 
-
 	void RobotInit()
 	{
 		lw = LiveWindow::GetInstance();
 		gyro->InitGyro();
 	}
-
 
 	void AutonomousInit()
 	{
@@ -264,37 +299,16 @@ private:
 
 	void AutonomousPeriodic()
 	{
-		intermediateV = ((int)gyro->GetAngle() + 3600000) % 360;
-		gyroValue = (float)intermediateV; // it's a FLOAT
+		intermediateGyro = ((int)gyro->GetAngle() + 3600000) % 360;
+		gyroValue = (float)intermediateGyro; // it's a FLOAT
 
 		// for drivetrain
-		switch (stepDrive)
+
+		switch(autoNumber)
 		{
 		case 0:
+			AutoForward();
 
-			if (autonTimer->Get() > 1.0){
-				stepDrive++;
-			}
-			break;
-		default:
-			while (autonTimer->Get() < 15.0){
-
-			}
-		}
-
-		// for elevator
-		switch (stepLift)
-		{
-		case 0:
-
-			if (autonTimer->Get() > 1.0){
-				stepLift++;
-			}
-			break;
-		default:
-			while (autonTimer->Get() < 15.0){
-
-			}
 		}
 		SmartDashboard::PutNumber("Left Encoder", liftEncoder_L->Get());
 		SmartDashboard::PutNumber("Right Encoder", liftEncoder_R->Get());
@@ -346,8 +360,8 @@ private:
 
 		//Wait(cycleWaitTime);
 
-		intermediateV = ((int)gyro->GetAngle() + 3600000) % 360;
-		gyroValue = (float)intermediateV; // it's a FLOAT
+		intermediateGyro = ((int)gyro->GetAngle() + 3600000) % 360;
+		gyroValue = (float)intermediateGyro; // it's a FLOAT
 
 		l_LiftEncoder = -1*(liftEncoder_L->Get()) + fakeZero;
 		r_LiftEncoder = (liftEncoder_R->Get()) + fakeZero;
