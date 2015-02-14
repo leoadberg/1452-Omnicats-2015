@@ -11,6 +11,8 @@ private:
 
 	Compressor *c = new Compressor(0);
 	Solenoid *suctionCups = new Solenoid(0);
+	bool suctionCupsOn = false;
+	bool lastSuctionButton = false;
 	DoubleSolenoid *piston1 = new DoubleSolenoid(1,2);
 	//DoubleSolenoid *piston2 = new DoubleSolenoid(3,4);
 
@@ -48,6 +50,7 @@ private:
 	Gyro *gyro = new Gyro(0);
 
 	Timer *autonTimer;
+	Timer *suctionTimer; // we're not using this right now, but we might in the future for whatever reason
 
 	const float cycleWaitTime = .0; // the time it waits between each cycle, in seconds (WE'RE NOT USING THIS)
 
@@ -104,8 +107,8 @@ private:
 	const int southButton = 2;
 	const int eastButton = 3;
 	const int northButton = 4;
-	const float acqStart_L = 180.0; // change
-	const float acqStart_R = 0.0; // change
+	const float acqStart_L = 90.0; // right button
+	const float acqStart_R = 270.0; // left button
 	const int acqStop = 9;
 	const int resetGyroButton = 10;
 	// joysticks are for mecanum Orient Drive
@@ -165,14 +168,21 @@ private:
 
 	float avgStrafeTicks = 0.0;
 
-	const float closerTote_dist = 13.0; // inches, for recognizing that ultrasonic has reached edge of tote (depth)
+	const float closerTote_dist = 12.0; // inches difference for recognizing with ultrasonic that robot has reached edge of tote
 	const float acqStrafeSpeed = 0.3;
+
+	float levelAlign_dist[2] = {4.0, 4.0}; // left, right
+
+	float levelAlign_dist_L = 4.0; // inches to the side robot must strafe to line up with tote levels
+	float levelAlign_dist_R = levelAlign_dist_L;
 	float dirDepth = 1.0; // for storing whether to mover forward or backward
 	const float toteDepth_dist = 24.0; // inches, for optimal distance away from tote for acquisition (depth)
 	const float toteDepth_range = 2.5; // inches, tolerance for getting within range of tote
 
-	float levelAlign_dist = 4.0; // inches to the side robot must strafe to line up with tote levels
 
+	int AcqIndex() {
+		return (int)(.5*(acqRunning + 1)); // for conversion of {-1, 1} to {0, 1} indices
+	}
 
 	void SetDriveEncAuto() {
 		if (firstCall) {
@@ -184,7 +194,6 @@ private:
 
 		avgDriveEnc = 0.5*(leftFrontEncoderAuto  + rightFrontEncoderAuto);
 	}
-
 
 	void OutputLift(float reverse, float difference = 0) {
 		lift_L->Set(reverse*(smoothStart + difference)*hardCorrection);
@@ -308,9 +317,9 @@ private:
 			r_BackDelta = abs(rightBackEncoder->Get() - r_BackEncoder_1);
 			l_BackDelta = abs(leftBackEncoder->Get() - l_BackEncoder_1);
 
-			avgStrafeTicks = 0.25*(r_FrontDelta + l_FrontDelta + r_BackDelta + l_BackDelta);
+			avgStrafeTicks = 0.5*(/*r_FrontDelta + l_FrontDelta +*/ r_BackDelta + l_BackDelta);
 
-			if (avgStrafeTicks*driveInchesPerTick > levelAlign_dist) {
+			if (avgStrafeTicks*driveInchesPerTick > levelAlign_dist[AcqIndex()]) {
 				stepAcq++;
 			}
 			break;
@@ -604,7 +613,15 @@ private:
 			}
 
 			// pneumatics
-			suctionCups->Set(auxStick->GetRawButton(suctionCupsButton)); // suction cups
+
+			if (!auxStick->GetRawButton(suctionCupsButton)) {
+				lastSuctionButton = true;
+			}
+			if (auxStick->GetRawButton(suctionCupsButton) && lastSuctionButton) {
+				lastSuctionButton = false;
+				suctionCupsOn = !suctionCupsOn;
+			}
+			suctionCups->Set(suctionCupsOn); // suction cups
 
 			if (auxStick->GetRawButton(1)){ // pneumatic extender arm acquisition thing
 				piston1->Set(DoubleSolenoid::kForward);
