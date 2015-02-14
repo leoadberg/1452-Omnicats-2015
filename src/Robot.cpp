@@ -166,7 +166,8 @@ private:
 	float avgStrafeTicks = 0.0;
 
 	const float closerTote_dist = 13.0; // inches, for recognizing that ultrasonic has reached edge of tote (depth)
-	const float acqStrafeSpeed = 0.4;
+	const float acqStrafeSpeed = 0.3;
+	float dirDepth = 1.0; // for storing whether to mover forward or backward
 	const float toteDepth_dist = 24.0; // inches, for optimal distance away from tote for acquisition (depth)
 	const float toteDepth_range = 2.5; // inches, tolerance for getting within range of tote
 
@@ -299,7 +300,7 @@ private:
 				}
 			}
 			break;
-		case 1: // strafe right to align with levels
+		case 1: // strafe right or left to align with levels
 			OutputStrafe(float(acqRunning), acqStrafeSpeed);
 
 			r_FrontDelta = abs(rightFrontEncoder->Get() - r_FrontEncoder_1);
@@ -314,7 +315,15 @@ private:
 			}
 			break;
 		case 2: // move backward/forward until right distance
-			OutputStraightDrive(1.0, acqStrafeSpeed);
+
+			if (ultrasonic_L->GetRangeInches() - toteDepth_dist > 0) {
+				dirDepth = 1.0;
+			}
+			else {
+				dirDepth = -1.0;
+			}
+
+			OutputStraightDrive(dirDepth, acqStrafeSpeed);
 			if (abs(ultrasonic_L->GetRangeInches() - toteDepth_dist) < toteDepth_range) {
 				stepAcq++;
 			}
@@ -488,19 +497,19 @@ private:
 		l_backEncoder = leftBackEncoder->Get();
 
 		// 90-align Smooth Start and Stop
-		if (driveStick->GetTwist() == acqStart_L) {
+		if (driveStick->GetDirectionRadians() == acqStart_L) {
 			acqRunning = 1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
-		else if (driveStick->GetTwist() == acqStart_R) {
+		else if (driveStick->GetDirectionRadians() == acqStart_R) {
 			acqRunning = -1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
 
 		if (driveStick->GetRawButton(acqStop)) {
-			acqRunning = 0;
+			acqRunning = 0; // not running
 			stepAcq = 0;
 			stepGetTote = 0;
 		}
