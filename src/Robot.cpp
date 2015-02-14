@@ -28,10 +28,10 @@ private:
 	Encoder *liftEncoder_L = new Encoder(0, 1, true);
 	Encoder *liftEncoder_R = new Encoder(3, 4, true); // newMotorTest encoder
 
-	Encoder *leftFrontEncoder = new Encoder(5, 6, true);
-	Encoder *rightFrontEncoder = new Encoder(7, 8, true);
-	Encoder *leftBackEncoder = new Encoder(9, 10, true);
-	Encoder *rightBackEncoder = new Encoder(11, 12, true);
+	Encoder *leftFrontEncoder = new Encoder(10, 11, true);
+	Encoder *leftBackEncoder = new Encoder(12, 13, true);
+	Encoder *rightFrontEncoder = new Encoder(16, 17, true);
+	Encoder *rightBackEncoder = new Encoder(14, 15, true);
 
 	CANTalon *leftFront = new CANTalon(1);
 	CANTalon *leftBack = new CANTalon(5);
@@ -92,7 +92,7 @@ private:
 	const float westDegrees = 270.0; // encoder ticks distance away from top for stopping (it's a safety buffer)
 	const float maxDegrees = 4.0*eastDegrees;
 
-	const float maxAlignSpeed = .4; // don't name ANYTHING this anywhere else or bad stuff will probably happen
+	const float maxAlignSpeed = .7; // don't name ANYTHING this anywhere else or bad stuff will probably happen
 	const float startAlignSpeed = .2*maxAlignSpeed; // acceleration starts here, skips the slowest part of Smooth Start
 	const float startAlignTime = .5; // How long it takes Smooth Start to reach maxAlignSpeed, in seconds
 	const float increaseAlignSpeed = (maxAlignSpeed - startAlignSpeed)/(startAlignTime / 0.02);
@@ -205,27 +205,27 @@ private:
 	}
 
 	void OutputAllDrive(float velocity = .5) {
-		rightFront->Set(velocity);
-		rightBack->Set(velocity);
-		leftFront->Set(velocity);
-		leftBack->Set(velocity);
+		PWMlf->Set(velocity);
+		PWMlb->Set(velocity);
+		PWMlf->Set(velocity);
+		PWMlb->Set(velocity);
 	}
 
 	void OutputPointTurn(float direction, float speedTurn = .4) { // for point turning and 90-align
-		rightFront->Set(-direction*speedTurn);
-		rightBack->Set(-direction*speedTurn);
-		leftFront->Set(direction*speedTurn);
-		leftBack->Set(direction*speedTurn);
+		PWMrf->Set(direction*speedTurn);
+		PWMrb->Set(direction*speedTurn);
+		PWMlf->Set(direction*speedTurn);
+		PWMlb->Set(direction*speedTurn);
 	}
 
 	void OutputStraightDrive(float direction, float distance = 1.0) { // for encoder AUTO go straight forward/backward movements
 		SetDriveEncAuto();
 
 		if (avgDriveEnc*driveInchesPerTick < distance) {
-			rightFront->Set(direction*speedStraightDrive);
-			rightBack->Set(direction*speedStraightDrive);
-			leftFront->Set(direction*speedStraightDrive);
-			leftBack->Set(direction*speedStraightDrive);
+			PWMlf->Set(direction*speedStraightDrive);
+			PWMlb->Set(direction*speedStraightDrive);
+			PWMlf->Set(direction*speedStraightDrive);
+			PWMlb->Set(direction*speedStraightDrive);
 		}
 		else {
 			firstCall = true;
@@ -234,11 +234,11 @@ private:
 	}
 
 	void OutputStrafe(float direction, float speedStrafe = .4) { // for point turning and 90-align
-		rightFront->Set(direction*speedStrafe);
-		leftBack->Set(direction*speedStrafe);
+		PWMlf->Set(direction*speedStrafe);
+		PWMlb->Set(direction*speedStrafe);
 
-		rightBack->Set(-direction*speedStrafe);
-		leftFront->Set(-direction*speedStrafe);
+		PWMlb->Set(-direction*speedStrafe);
+		PWMlf->Set(-direction*speedStrafe);
 	}
 
 	bool AcqGetTote() {
@@ -444,8 +444,8 @@ private:
 			AutoForward();
 			break;
 		}
-		SmartDashboard::PutNumber("Left Encoder", liftEncoder_L->Get());
-		SmartDashboard::PutNumber("Right Encoder", liftEncoder_R->Get());
+		SmartDashboard::PutNumber("Left lift Encoder", liftEncoder_L->Get());
+		SmartDashboard::PutNumber("Right lift Encoder", liftEncoder_R->Get());
 		SmartDashboard::PutBoolean("Limit", ultrasonic_L->GetRangeInches());
 	}
 
@@ -528,6 +528,11 @@ private:
 		}
 		else
 		{
+			leftFront->Set(PWMlf->Get());
+			leftBack->Set(PWMlb->Get());
+			rightFront->Set(PWMrf->Get());
+			rightBack->Set(-PWMrb->Get());
+
 			if (driveStick->GetRawButton(northButton)) // north = 0, dir = 1 means clockwise is positive
 			{
 				if (smoothAlign < maxAlignSpeed) {
@@ -595,15 +600,10 @@ private:
 			}
 			else {
 				drive->MecanumDrive_Cartesian(speedM*driveStick->GetX(),speedM*driveStick->GetY(),speedM*driveStick->GetZ(), gyro->GetAngle());
-				leftFront->Set(PWMlf->Get());
-				leftBack->Set(PWMlb->Get());
-				rightFront->Set(PWMrf->Get());
-				rightBack->Set(PWMrb->Get());
 
 				smoothAlign = startAlignSpeed;
 				//OutputAllDrive(0.0);
 			}
-
 
 			// Reset Encoders in elevator
 			if (auxStick->GetRawButton(resetEncodersButton))
@@ -623,7 +623,7 @@ private:
 			}
 			suctionCups->Set(suctionCupsOn); // suction cups
 
-			if (auxStick->GetRawButton(1)){ // pneumatic extender arm acquisition thing
+			if (auxStick->GetRawButton(pistonButton)){ // pneumatic extender arm acquisition thing
 				piston1->Set(DoubleSolenoid::kForward);
 				//piston2->Set(DoubleSolenoid::kForward);
 			} else {
@@ -712,12 +712,17 @@ private:
 
 				smoothStart = startSpeed;
 			}
-
 		}
 
 		SmartDashboard::PutNumber("Left lift Enc", l_LiftEncoder);
 		SmartDashboard::PutNumber("Right lift Enc", r_LiftEncoder);
-		SmartDashboard::PutBoolean("Left Ultrasonic", ultrasonic_L->GetRangeInches());
+		SmartDashboard::PutNumber("Gyro", gyroValue);
+		SmartDashboard::PutNumber("Left Ultrasonic", ultrasonic_L->GetRangeInches());
+
+		SmartDashboard::PutNumber("Right Front Wheel", r_frontEncoder);
+		SmartDashboard::PutNumber("Left Front Wheel", l_frontEncoder);
+		SmartDashboard::PutNumber("Right Back Wheel", r_backEncoder);
+		SmartDashboard::PutNumber("Left Back Wheel", l_backEncoder);
 	}
 
 	void TestPeriodic()
