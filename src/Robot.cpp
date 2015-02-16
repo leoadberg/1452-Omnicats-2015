@@ -13,6 +13,8 @@ private:
 	Solenoid *suctionCups = new Solenoid(0);
 	bool suctionCupsOn = false;
 	bool lastSuctionButton = false;
+	bool pistonsOn = false;
+	bool lastPistonButton = false;
 	DoubleSolenoid *piston1 = new DoubleSolenoid(1,2);
 	//DoubleSolenoid *piston2 = new DoubleSolenoid(3,4);
 
@@ -23,15 +25,20 @@ private:
 	DigitalInput *bottomLimit_L = new DigitalInput(7); // for stopping elevator at bottom
 
 	Ultrasonic *ultrasonic_L = new Ultrasonic(6, 7); // CHANGE PORTS
-	Ultrasonic *ultrasonic_R = new Ultrasonic(13, 14); // CHANGE PORTS
+	Ultrasonic *ultrasonic_R = new Ultrasonic(8, 9); // CHANGE PORTS
 
 	Encoder *liftEncoder_L = new Encoder(0, 1, true);
 	Encoder *liftEncoder_R = new Encoder(3, 4, true); // newMotorTest encoder
 
+	/*
+	Encoder *leftFrontEncoder = new Encoder(5, 6, true);
+	Encoder *rightFrontEncoder = new Encoder(7, 8, true);
+	*/
 	Encoder *leftFrontEncoder = new Encoder(10, 11, true);
+	Encoder *rightFrontEncoder = new Encoder(14, 15, true);
+
 	Encoder *leftBackEncoder = new Encoder(12, 13, true);
-	Encoder *rightFrontEncoder = new Encoder(16, 17, true);
-	Encoder *rightBackEncoder = new Encoder(14, 15, true);
+	Encoder *rightBackEncoder = new Encoder(16, 17, true);
 
 	CANTalon *leftFront = new CANTalon(1);
 	CANTalon *leftBack = new CANTalon(5);
@@ -83,7 +90,6 @@ private:
 	int intermediateGyro;
 	float gyroValue;
 	const int fakeZero = 50;
-	//
 
 	// Smooth Start AND Smooth Stop 90-Align variables
 	const float northDegrees = 0.0; // number of encoder ticks per 1 encoder height
@@ -92,14 +98,14 @@ private:
 	const float westDegrees = 270.0; // encoder ticks distance away from top for stopping (it's a safety buffer)
 	const float maxDegrees = 4.0*eastDegrees;
 
-	const float maxAlignSpeed = .7; // don't name ANYTHING this anywhere else or bad stuff will probably happen
+	const float maxAlignSpeed = .8; // don't name ANYTHING this anywhere else or bad stuff will probably happen
 	const float startAlignSpeed = .2*maxAlignSpeed; // acceleration starts here, skips the slowest part of Smooth Start
 	const float startAlignTime = .5; // How long it takes Smooth Start to reach maxAlignSpeed, in seconds
 	const float increaseAlignSpeed = (maxAlignSpeed - startAlignSpeed)/(startAlignTime / 0.02);
 	float smoothAlign = startAlignSpeed;  // motor value multiplication during smooth align
 
 	float dir = 1.0; // for reversing turning direction
-	float alignBufferZone = 30.0;
+	float alignBufferZone = 12.0;
 	float minAlignMultiplier = 0.1;
 
 	//driveStick buttons
@@ -107,10 +113,11 @@ private:
 	const int southButton = 2;
 	const int eastButton = 3;
 	const int northButton = 4;
+	const int getToteButton = 8;
 	const float acqStart_L = 90.0; // right button
 	const float acqStart_R = 270.0; // left button
 	const int acqStop = 9;
-	const int resetGyroButton = 10;
+	const int resetGyroButton = 10; // reset Gyro
 	// joysticks are for mecanum Orient Drive
 
 	//auxStick buttons
@@ -120,12 +127,11 @@ private:
 	const int pos2Button = 2; // on auxStick
 	const int pos3Button = 3; // on auxStick
 	const int pos4Button = 4; // on auxStick
-	const int resetEncodersButton = 9; // on auxStick
+	const int resetEncodersButton = 10; // on auxStick
 	const int suctionCupsButton = 5;
 	const int pistonButton = 7;
 
 	const float speedM = .8; // default testing drivetrain max speed
-
 
 	int autoNumber = 0;
 	// for stepping through the steps for each subsystem in autonomous
@@ -144,6 +150,8 @@ private:
 	bool firstCall = true;
 
 	// AcqGetTote:  grab, suck and bring in tote
+	bool getToteRunning = false;
+
 	Timer *getToteTimer;
 	int stepGetTote = 0;
 	float getToteLastTime = 0.0;
@@ -248,14 +256,17 @@ private:
 			getToteTimer = new Timer();
 			getToteTimer->Reset();
 			getToteTimer->Start();
-			suctionCups->Set(true);
+			suctionCupsOn = true;
+			stepGetTote++;
+			break;
+		case 1:
 			if (getToteTimer->Get() > getToteSuckTime) {
 				stepGetTote++;
 				getToteLastTime += getToteTimer->Get();
 			}
 			break;
 
-		case 1:
+		case 2:
 			piston1->Set(DoubleSolenoid::kForward);
 			if (getToteTimer->Get() > getToteLastTime + getToteExtendTime) {
 				stepGetTote++;
@@ -263,9 +274,9 @@ private:
 			}
 			break;
 
-		case 2: // retract with tote
+		case 3: // retract with tote
 			piston1->Set(DoubleSolenoid::kReverse);
-			if (getToteTimer->Get() > getToteLastTime + 2.0*getToteExtendTime) { // takes longer to retract
+			if (getToteTimer->Get() > getToteLastTime + getToteExtendTime) { // takes longer to retract
 				stepGetTote = 0;
 				getToteLastTime = 0; // reset to 0 for next run
 				return true;
@@ -317,7 +328,7 @@ private:
 			r_BackDelta = abs(rightBackEncoder->Get() - r_BackEncoder_1);
 			l_BackDelta = abs(leftBackEncoder->Get() - l_BackEncoder_1);
 
-			avgStrafeTicks = 0.5*(/*r_FrontDelta + l_FrontDelta +*/ r_BackDelta + l_BackDelta);
+			avgStrafeTicks = 0.25*(r_FrontDelta + l_FrontDelta + r_BackDelta + l_BackDelta);
 
 			if (avgStrafeTicks*driveInchesPerTick > levelAlign_dist[AcqIndex()]) {
 				stepAcq++;
@@ -505,13 +516,23 @@ private:
 		r_backEncoder = rightBackEncoder->Get();
 		l_backEncoder = leftBackEncoder->Get();
 
-		// 90-align Smooth Start and Stop
-		if (driveStick->GetDirectionRadians() == acqStart_L) {
+		suctionCups->Set(suctionCupsOn);
+
+		leftFront->Set(PWMlf->Get());
+		leftBack->Set(PWMlb->Get());
+		rightFront->Set(PWMrf->Get());
+		rightBack->Set(-PWMrb->Get());
+
+
+		if (driveStick->GetRawButton(getToteButton)) {
+			getToteRunning = true;
+		}
+		else if (driveStick->GetPOV() == acqStart_L && !getToteRunning) {
 			acqRunning = 1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
-		else if (driveStick->GetDirectionRadians() == acqStart_R) {
+		else if (driveStick->GetPOV() == acqStart_R && !getToteRunning) {
 			acqRunning = -1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
@@ -521,18 +542,21 @@ private:
 			acqRunning = 0; // not running
 			stepAcq = 0;
 			stepGetTote = 0;
+
+			getToteRunning = false;
 		}
 
+		// run what has been pressed to run
 		if (acqRunning != 0) {
 			AcqRoutine();
 		}
+		else if (getToteRunning) {
+			if (AcqGetTote()) {
+				getToteRunning = false;
+			}
+		}
 		else
 		{
-			leftFront->Set(PWMlf->Get());
-			leftBack->Set(PWMlb->Get());
-			rightFront->Set(PWMrf->Get());
-			rightBack->Set(-PWMrb->Get());
-
 			if (driveStick->GetRawButton(northButton)) // north = 0, dir = 1 means clockwise is positive
 			{
 				if (smoothAlign < maxAlignSpeed) {
@@ -605,6 +629,10 @@ private:
 				//OutputAllDrive(0.0);
 			}
 
+			if (driveStick->GetRawButton(resetGyroButton)) {
+				gyro->Reset();
+			}
+
 			// Reset Encoders in elevator
 			if (auxStick->GetRawButton(resetEncodersButton))
 			{
@@ -614,6 +642,7 @@ private:
 
 			// pneumatics
 
+			// suction cups
 			if (!auxStick->GetRawButton(suctionCupsButton)) {
 				lastSuctionButton = true;
 			}
@@ -621,9 +650,16 @@ private:
 				lastSuctionButton = false;
 				suctionCupsOn = !suctionCupsOn;
 			}
-			suctionCups->Set(suctionCupsOn); // suction cups
 
-			if (auxStick->GetRawButton(pistonButton)){ // pneumatic extender arm acquisition thing
+			// pneumatics arm extender
+			if (!auxStick->GetRawButton(pistonButton)) {
+				lastPistonButton = true;
+			}
+			if (auxStick->GetRawButton(pistonButton) && lastPistonButton) {
+				lastPistonButton = false;
+				pistonsOn = !pistonsOn;
+			}
+			if (pistonsOn){
 				piston1->Set(DoubleSolenoid::kForward);
 				//piston2->Set(DoubleSolenoid::kForward);
 			} else {
@@ -635,7 +671,7 @@ private:
 
 			correctionDifference = correction*smoothStart*std::min((float)abs(l_LiftEncoder-r_LiftEncoder)/50.0 + 0.5,1.0);
 
-			if ( !(topLimit_L->Get()) && (auxStick->GetRawButton(upButton)
+			if ( (topLimit_L->Get()) && (auxStick->GetRawButton(upButton)
 					|| (auxStick->GetRawButton(pos1Button) && l_LiftEncoder < 0)
 					|| (auxStick->GetRawButton(pos2Button) && l_LiftEncoder < toteHeight)
 					|| (auxStick->GetRawButton(pos3Button) && l_LiftEncoder < toteHeight*2)
@@ -666,7 +702,7 @@ private:
 					OutputLift(1.0);
 				}
 			}
-			else if ( !(bottomLimit_L->Get()) && (auxStick->GetRawButton(downButton)
+			else if ( (bottomLimit_L->Get()) && (auxStick->GetRawButton(downButton)
 					|| (auxStick->GetRawButton(pos1Button) && l_LiftEncoder > 0)
 					|| (auxStick->GetRawButton(pos2Button) && l_LiftEncoder > toteHeight)
 					|| (auxStick->GetRawButton(pos3Button) && l_LiftEncoder > toteHeight*2)
@@ -698,10 +734,10 @@ private:
 				}
 			}
 
-			else if (!(topLimit_L->Get()) && driveStick->GetRawButton(5)) { // move up
+			else if ((topLimit_L->Get()) && driveStick->GetRawButton(5)) { // move up
 				OutputLiftRegular(1.0, speedM);
 			}
-			else if (!(bottomLimit_L->Get()) && driveStick->GetRawButton(7)) {
+			else if ((bottomLimit_L->Get()) && driveStick->GetRawButton(7)) {
 				OutputLiftRegular(-1.0, speedM);
 			}
 			else {
@@ -718,6 +754,7 @@ private:
 		SmartDashboard::PutNumber("Right lift Enc", r_LiftEncoder);
 		SmartDashboard::PutNumber("Gyro", gyroValue);
 		SmartDashboard::PutNumber("Left Ultrasonic", ultrasonic_L->GetRangeInches());
+		SmartDashboard::PutNumber("Right Ultrasonic", ultrasonic_R->GetRangeInches());
 
 		SmartDashboard::PutNumber("Right Front Wheel", r_frontEncoder);
 		SmartDashboard::PutNumber("Left Front Wheel", l_frontEncoder);
