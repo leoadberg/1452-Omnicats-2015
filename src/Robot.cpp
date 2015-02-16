@@ -21,8 +21,8 @@ private:
 	Joystick *driveStick = new Joystick(0); // only joyauxStick
 	Joystick *auxStick = new Joystick(1);
 
-	DigitalInput *topLimit_L = new DigitalInput(2); // for stopping elevator at top
-	DigitalInput *bottomLimit_L = new DigitalInput(7); // for stopping elevator at bottom
+	DigitalInput *topLimit_L = new DigitalInput(5); // for stopping elevator at top
+	DigitalInput *bottomLimit_L = new DigitalInput(2); // for stopping elevator at bottom
 
 	Ultrasonic *ultrasonic_L = new Ultrasonic(6, 7); // CHANGE PORTS
 	Ultrasonic *ultrasonic_R = new Ultrasonic(8, 9); // CHANGE PORTS
@@ -176,8 +176,8 @@ private:
 
 	float avgStrafeTicks = 0.0;
 
-	const float closerTote_dist = 12.0; // inches difference for recognizing with ultrasonic that robot has reached edge of tote
-	const float acqStrafeSpeed = 0.3;
+	const float closerTote_dist = 10.0; // inches difference for recognizing with ultrasonic that robot has reached edge of tote
+	const float acqStrafeSpeed = 0.9;
 
 	float levelAlign_dist[2] = {4.0, 4.0}; // left, right
 
@@ -278,7 +278,7 @@ private:
 			piston1->Set(DoubleSolenoid::kReverse);
 			if (getToteTimer->Get() > getToteLastTime + getToteExtendTime) { // takes longer to retract
 				stepGetTote = 0;
-				getToteLastTime = 0; // reset to 0 for next run
+				getToteLastTime = 0.0; // reset to 0 for next run
 				return true;
 			}
 			break;
@@ -343,7 +343,7 @@ private:
 				dirDepth = -1.0;
 			}
 
-			OutputStraightDrive(dirDepth, acqStrafeSpeed);
+			OutputStraightDrive(dirDepth, 0.5);
 			if (abs(ultrasonic_L->GetRangeInches() - toteDepth_dist) < toteDepth_range) {
 				stepAcq++;
 			}
@@ -356,6 +356,7 @@ private:
 		case 4:
 			if (AcqGetTote()) { // run AcqGetTote, if done, end everything and reset
 				acqRunning = 0;
+				stepAcq = 0;
 			}
 			break;
 
@@ -737,7 +738,7 @@ private:
 			else if ((topLimit_L->Get()) && driveStick->GetRawButton(5)) { // move up
 				OutputLiftRegular(1.0, speedM);
 			}
-			else if ((bottomLimit_L->Get()) && driveStick->GetRawButton(7)) {
+			else if ((bottomLimit_L->Get()) && driveStick->GetRawButton(7)) { // move down
 				OutputLiftRegular(-1.0, speedM);
 			}
 			else {
