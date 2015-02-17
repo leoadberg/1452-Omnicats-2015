@@ -13,10 +13,11 @@ private:
 	Solenoid *suctionCups = new Solenoid(0);
 	bool suctionCupsOn = false;
 	bool lastSuctionButton = false;
-	bool pistonsOn = false;
-	bool lastPistonButton = false;
+
 	DoubleSolenoid *piston1 = new DoubleSolenoid(1,2);
 	//DoubleSolenoid *piston2 = new DoubleSolenoid(3,4);
+	bool pistonsOn = false;
+	bool lastPistonButton = false;
 
 	Joystick *driveStick = new Joystick(0); // only joyauxStick
 	Joystick *auxStick = new Joystick(1);
@@ -113,7 +114,8 @@ private:
 	const int southButton = 2;
 	const int eastButton = 3;
 	const int northButton = 4;
-	const int getToteButton = 8;
+	const int getToteButton = 6;
+	const int relToteButton = 8;
 	const float acqStart_L = 90.0; // right button
 	const float acqStart_R = 270.0; // left button
 	const int acqStop = 9;
@@ -121,19 +123,19 @@ private:
 	// joysticks are for mecanum Orient Drive
 
 	//auxStick buttons
-	const int upButton = 6; // on auxStick
-	const int downButton = 8; // on auxStick
-	const int pos1Button = 1; // on auxStick
-	const int pos2Button = 2; // on auxStick
-	const int pos3Button = 3; // on auxStick
-	const int pos4Button = 4; // on auxStick
-	const int resetEncodersButton = 10; // on auxStick
+	const int upButton = 6; // for elevator
+	const int downButton = 8; // for elevator
+	const int pos1Button = 1; // for elevator
+	const int pos2Button = 2; // for elevator
+	const int pos3Button = 3; // for elevator
+	const int pos4Button = 4; // for elevator
+	const int resetEncodersButton = 10; // resets elevator motor encoders
 	const int suctionCupsButton = 5;
 	const int pistonButton = 7;
 
 	const float speedM = .8; // default testing drivetrain max speed
 
-	int autoNumber = 0;
+	int autoNumber = 0; // this tell sthe program which AUTO program to run
 	// for stepping through the steps for each subsystem in autonomous
 	int stepDrive = 0;
 	int stepLift = 0;
@@ -149,14 +151,20 @@ private:
 
 	bool firstCall = true;
 
+	//
+	Timer *toteTimer = new Timer();
+	const float toteExtendTime = 1.7;
+	float getToteLastTime = 0.0;
+	// ReleaseTote: extend, unsuck, and retract
+
+	bool relToteRunning = false;
+	int stepRelTote = 0;
+
 	// AcqGetTote:  grab, suck and bring in tote
 	bool getToteRunning = false;
-
-	Timer *getToteTimer;
 	int stepGetTote = 0;
-	float getToteLastTime = 0.0;
+
 	const float getToteSuckTime = 0.3;
-	const float getToteExtendTime = 2.0;
 
 	// AcqRoutine: acquisition routine
 	int stepAcq = 0;
@@ -249,34 +257,68 @@ private:
 		PWMlf->Set(-direction*speedStrafe);
 	}
 
-	bool AcqGetTote() {
-		switch(stepGetTote)
+	void ReleaseTote() {
+		switch(stepRelTote)
 		{
 		case 0:
-			getToteTimer = new Timer();
-			getToteTimer->Reset();
-			getToteTimer->Start();
-			suctionCupsOn = true;
-			stepGetTote++;
+			toteTimer->Reset();
+			toteTimer->Start();
+			piston1->Set(DoubleSolenoid::kForward);
+			stepRelTote++;
 			break;
 		case 1:
-			if (getToteTimer->Get() > getToteSuckTime) {
-				stepGetTote++;
-				getToteLastTime += getToteTimer->Get();
+			if (toteTimer->Get() > toteExtendTime) {
+				stepRelTote++;
+				getToteLastTime += toteTimer->Get();
 			}
 			break;
 
 		case 2:
-			piston1->Set(DoubleSolenoid::kForward);
-			if (getToteTimer->Get() > getToteLastTime + getToteExtendTime) {
-				stepGetTote++;
-				getToteLastTime += getToteTimer->Get();
+			suctionCupsOn = false; // let go of tote
+			if (toteTimer->Get() > getToteLastTime + 0.2) { // wait a tiny amount of time for tote to unseal
+				stepRelTote++;
+				getToteLastTime += toteTimer->Get();
 			}
 			break;
 
 		case 3: // retract with tote
 			piston1->Set(DoubleSolenoid::kReverse);
-			if (getToteTimer->Get() > getToteLastTime + getToteExtendTime) { // takes longer to retract
+			if (toteTimer->Get() > getToteLastTime + toteExtendTime) { // takes longer to retract
+				relToteRunning = false;
+				stepRelTote = 0;
+				getToteLastTime = 0.0; // reset to 0 for next run
+			}
+			break;
+		}
+	}
+
+	bool AcqGetTote() {
+		switch(stepGetTote)
+		{
+		case 0:
+			toteTimer->Reset();
+			toteTimer->Start();
+			suctionCupsOn = true;
+			stepGetTote++;
+			break;
+		case 1:
+			if (toteTimer->Get() > getToteSuckTime) {
+				stepGetTote++;
+				getToteLastTime += toteTimer->Get();
+			}
+			break;
+
+		case 2:
+			piston1->Set(DoubleSolenoid::kForward);
+			if (toteTimer->Get() > getToteLastTime + toteExtendTime) {
+				stepGetTote++;
+				getToteLastTime += toteTimer->Get();
+			}
+			break;
+
+		case 3: // retract with tote
+			piston1->Set(DoubleSolenoid::kReverse);
+			if (toteTimer->Get() > getToteLastTime + toteExtendTime) { // takes longer to retract
 				stepGetTote = 0;
 				getToteLastTime = 0.0; // reset to 0 for next run
 				return true;
@@ -444,6 +486,21 @@ private:
 		intermediateGyro = ((int)gyro->GetAngle() + 3600000) % 360;
 		gyroValue = (float)intermediateGyro; // it's a FLOAT
 
+		l_LiftEncoder = -1*(liftEncoder_L->Get()) + fakeZero;
+		r_LiftEncoder = (liftEncoder_R->Get()) + fakeZero;
+
+		r_frontEncoder = rightFrontEncoder->Get();
+		l_frontEncoder = leftFrontEncoder->Get();
+		r_backEncoder = rightBackEncoder->Get();
+		l_backEncoder = leftBackEncoder->Get();
+
+		suctionCups->Set(suctionCupsOn);
+
+		leftFront->Set(PWMlf->Get());
+		leftBack->Set(PWMlb->Get());
+		rightFront->Set(PWMrf->Get());
+		rightBack->Set(-PWMrb->Get());
+
 		// for drivetrain
 
 		switch(autoNumber)
@@ -470,11 +527,13 @@ private:
 		gyroValue = 0;
 
 		ultrasonic_L->SetAutomaticMode(true);
+		ultrasonic_R->SetAutomaticMode(true);
 
 		//drive->SetSafetyEnabled(false);
 		drive->SetInvertedMotor(RobotDrive::MotorType::kFrontRightMotor, true);
 		drive->SetInvertedMotor(RobotDrive::MotorType::kRearRightMotor, true);
 		drive->SetExpiration(1.0);
+
 		leftFront->SetExpiration(1.0);
 		leftBack->SetExpiration(1.0);
 		rightFront->SetExpiration(1.0);
@@ -528,23 +587,29 @@ private:
 		if (driveStick->GetRawButton(getToteButton)) {
 			getToteRunning = true;
 		}
-		else if (driveStick->GetPOV() == acqStart_L && !getToteRunning) {
+		else if (driveStick->GetRawButton(relToteButton) && !getToteRunning && !acqRunning) {
+			relToteRunning = true;
+		}
+		else if (driveStick->GetPOV() == acqStart_L && !relToteRunning && !getToteRunning) {
 			acqRunning = 1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
-		else if (driveStick->GetPOV() == acqStart_R && !getToteRunning) {
+		else if (driveStick->GetPOV() == acqStart_R && !relToteRunning && !getToteRunning) {
 			acqRunning = -1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
 
 		if (driveStick->GetRawButton(acqStop)) {
-			acqRunning = 0; // not running
-			stepAcq = 0;
-			stepGetTote = 0;
+			acqRunning = 0; // stop running
+			stepAcq = 0;    // reset to first step
 
 			getToteRunning = false;
+			stepGetTote = 0;
+
+			relToteRunning = false;
+			stepRelTote = 0;
 		}
 
 		// run what has been pressed to run
@@ -555,6 +620,9 @@ private:
 			if (AcqGetTote()) {
 				getToteRunning = false;
 			}
+		}
+		else if (relToteRunning) {
+			ReleaseTote();
 		}
 		else
 		{
@@ -734,13 +802,13 @@ private:
 					OutputLift(-1.0);
 				}
 			}
-
+			/*
 			else if ((topLimit_L->Get()) && driveStick->GetRawButton(5)) { // move up
 				OutputLiftRegular(1.0, speedM);
 			}
 			else if ((bottomLimit_L->Get()) && driveStick->GetRawButton(7)) { // move down
 				OutputLiftRegular(-1.0, speedM);
-			}
+			}*/
 			else {
 				//				OutputLift(0.0);
 
