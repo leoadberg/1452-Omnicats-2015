@@ -143,11 +143,20 @@ private:
 
 	// function global variables:
 	//OutputStraightDrive: go forward and backward straight with encoders
-	float speedStraightDrive = .3;
+	float speedStrDrive = .3;
 
-	float leftFrontEncoderAuto = 0;
-	float rightFrontEncoderAuto = 0;
-	float avgDriveEnc = 0;
+	float leftFrontEncStraight = 0.0;
+	float rightFrontEncStraight = 0.0;
+	float leftBackEncStraight = 0.0;
+	float rightBackEncStraight = 0.0;
+
+	float strLeftEnc = 0.0;
+	float strRightEnc = 0.0;
+	float strCorrSign = 1.0;
+	float strDifference = 0.0;
+
+	// SetDriveEncAuto: sets drive train encoder values before AUTO functions
+	float avgDriveEnc = 0.0;
 
 	bool firstCall = true;
 
@@ -202,13 +211,18 @@ private:
 
 	void SetDriveEncAuto() {
 		if (firstCall) {
-			leftFrontEncoderAuto = leftFrontEncoder->Get();
-			rightFrontEncoderAuto = rightFrontEncoder->Get();
+			leftFrontEncStraight = abs(leftFrontEncoder->Get());
+			rightFrontEncStraight = abs(rightFrontEncoder->Get());
+			leftBackEncStraight = abs(leftBackEncoder->Get());
+			rightBackEncStraight = abs(rightBackEncoder->Get());
 
 			firstCall = false;
 		}
 
-		avgDriveEnc = 0.5*(leftFrontEncoderAuto  + rightFrontEncoderAuto);
+		strLeftEnc = .5*(abs(leftFrontEncoder->Get() - leftFrontEncStraight) + abs(leftBackEncoder->Get() - leftBackEncStraight));
+		strRightEnc = .5*(abs(rightFrontEncoder->Get() - rightFrontEncStraight) + abs(rightBackEncoder->Get() - rightBackEncStraight));
+
+		avgDriveEnc = 0.5*abs(strLeftEnc + strRightEnc);
 	}
 
 	void OutputLift(float reverse, float difference = 0) {
@@ -234,14 +248,33 @@ private:
 		PWMlb->Set(direction*speedTurn);
 	}
 
-	void OutputStraightDrive(float direction, float distance = 1.0) { // for encoder AUTO go straight forward/backward movements
+	void OutputStraightDrive(float direction, float speedStrDrive = .8) { // moves straight backward or forward indefinitely
 		SetDriveEncAuto();
 
+		strCorrSign = (strRightEnc - strLeftEnc)/abs(strRightEnc - strLeftEnc); // store sign
+
+		strDifference = (float)(std::min(abs(strRightEnc - strLeftEnc)/100.0, 0.4)) * strCorrSign;
+
+		PWMlf->Set(direction*(speedStrDrive + strDifference));
+		PWMlb->Set(direction*(speedStrDrive + strDifference));
+
+		PWMrf->Set(direction*(speedStrDrive - strDifference));
+		PWMrb->Set(direction*(speedStrDrive - strDifference));
+
+	}
+
+	void OutputDistanceDrive(float direction, float distance = 1.0) { // for encoder AUTO go straight forward/backward movements
+		SetDriveEncAuto();
+
+		strCorrSign = (strRightEnc - strLeftEnc)/abs(strRightEnc - strLeftEnc); // store sign
+		strDifference = (float)(std::min(abs(strRightEnc - strLeftEnc)/100.0, 0.4) * strCorrSign);
+
 		if (avgDriveEnc*driveInchesPerTick < distance) {
-			PWMlf->Set(direction*speedStraightDrive);
-			PWMlb->Set(direction*speedStraightDrive);
-			PWMlf->Set(direction*speedStraightDrive);
-			PWMlb->Set(direction*speedStraightDrive);
+			PWMlf->Set(direction*(speedStrDrive + strDifference));
+			PWMlb->Set(direction*(speedStrDrive + strDifference));
+
+			PWMrf->Set(direction*(speedStrDrive - strDifference));
+			PWMrb->Set(direction*(speedStrDrive - strDifference));
 		}
 		else {
 			firstCall = true;
@@ -250,10 +283,10 @@ private:
 	}
 
 	void OutputStrafe(float direction, float speedStrafe = .4) { // for point turning and 90-align
-		PWMlf->Set(direction*speedStrafe);
+		PWMrf->Set(direction*speedStrafe);
 		PWMlb->Set(direction*speedStrafe);
 
-		PWMlb->Set(-direction*speedStrafe);
+		PWMrb->Set(-direction*speedStrafe);
 		PWMlf->Set(-direction*speedStrafe);
 	}
 
@@ -387,6 +420,7 @@ private:
 
 			OutputStraightDrive(dirDepth, 0.5);
 			if (abs(ultrasonic_L->GetRangeInches() - toteDepth_dist) < toteDepth_range) {
+				firstCall = true;
 				stepAcq++;
 			}
 			break;
@@ -420,7 +454,7 @@ private:
 		switch (stepDrive) // for drive train
 		{
 		case 0:
-			OutputStraightDrive(1.0, 4.0);
+			OutputDistanceDrive(1.0, 140.0);
 			if (autonTimer->Get() > 15.0){
 				stepDrive++;
 			}
@@ -435,6 +469,7 @@ private:
 			while (autonTimer->Get() < 15.0){
 
 			}
+			break;
 		}
 
 		switch (stepLift) // for elevator
@@ -449,6 +484,7 @@ private:
 			while (autonTimer->Get() < 15.0) {
 
 			}
+			break;
 		}
 	}
 
