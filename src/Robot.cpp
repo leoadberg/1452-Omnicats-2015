@@ -51,6 +51,8 @@ private:
 	TalonSRX *PWMrf = new TalonSRX(2);
 	TalonSRX *PWMrb = new TalonSRX(3);
 
+	TalonSRX *testAuto = new TalonSRX(7);
+
 	CANTalon *lift_R = new CANTalon(4);
 	CANTalon *lift_L = new CANTalon(3);
 
@@ -137,11 +139,11 @@ private:
 	const float speedM = .8; // default testing drivetrain max speed
 	float resetDifference = 0.0;
 
-	int autoNumber = 0; // this tell sthe program which AUTO program to run
+	int autoNumber = 0; // this tells the program which AUTO program to run
 	// for stepping through the steps for each subsystem in autonomous
 	int stepDrive = 0;
 	int stepLift = 0;
-	int stepPneumatics = 0;
+	int stepPneum = 0;
 
 	// function global variables:
 	//OutputStraightDrive: go forward and backward straight with encoders
@@ -276,7 +278,7 @@ private:
 		SetDriveEncAuto();
 
 		strCorrSign = (strRightEnc - strLeftEnc)/abs(strRightEnc - strLeftEnc); // store sign
-		strDifference = (float)(std::min(abs(strRightEnc - strLeftEnc)/100.0, 0.4) * strCorrSign);
+		strDifference = (float)(std::min(abs(strRightEnc - strLeftEnc)/100.0, 0.3) * strCorrSign);
 
 		if (avgDriveEnc*driveInchesPerTick < distance) {
 			PWMlf->Set(direction*(speedStrDrive + strDifference));
@@ -313,7 +315,7 @@ private:
 		}
 	}
 
-	void ReleaseTote() {
+	bool ReleaseTote() {
 		switch(stepRelTote)
 		{
 		case 0:
@@ -343,9 +345,11 @@ private:
 				relToteRunning = false;
 				stepRelTote = 0;
 				getToteLastTime = 0.0; // reset to 0 for next run
+				return true;
 			}
 			break;
 		}
+		return false;
 	}
 
 	bool AcqGetTote() {
@@ -473,6 +477,35 @@ private:
 		return 0.0;
 	}
 
+	void AutoBasic() {
+		switch (stepDrive) // for drive train
+		{
+		case 0:
+			testAuto->Set(.7);
+			if (autonTimer->Get() > 2.0){
+				stepDrive++;
+			}
+			break;
+		case 1:
+			testAuto->Set(0.0);
+			if (autonTimer->Get() > 4.0) {
+				stepDrive++;
+			}
+			break;
+		case 2:
+			testAuto->Set(.5);
+			if (autonTimer->Get() > 7.0) {
+				stepDrive++;
+			}
+			break;
+		default:
+			while (autonTimer->Get() < 15.0){
+
+			}
+			break;
+		}
+	}
+
 	void AutoForward() { // the most basic default AUTO routine
 		switch (stepDrive) // for drive train
 		{
@@ -509,6 +542,61 @@ private:
 			}
 			break;
 		}
+	}
+
+	void AutoOneTote() {
+		switch (stepDrive) // for drive train
+		{
+		case 0:
+			if (AcqGetTote()) {
+				stepDrive++;
+			}
+			break;
+		case 1:
+			OutputDistanceDrive(-1.0, 40.0);
+			if (autonTimer->Get() > 15.0){
+				stepDrive++;
+			}
+			break;
+		case 2:
+			OutputAllDrive(0.0);
+			Wait(.4);
+			stepDrive++;
+			break;
+		case 3:
+			if (ReleaseTote()) {
+				stepDrive++;
+			}
+			break;
+		default:
+			while (autonTimer->Get() < 15.0){
+
+			}
+			break;
+		}
+
+		/*
+		switch (stepPneum) // for drive train
+		{
+		case 0:
+
+			if (autonTimer->Get() > 15.0){
+				stepPneum++;
+			}
+			break;
+		case 1:
+			OutputAllDrive(0.0);
+			if (autonTimer->Get() > 15.0) {
+				stepPneum++;
+			}
+			break;
+		default:
+			while (autonTimer->Get() < 15.0){
+
+			}
+			break;
+		} */
+
 	}
 
 	void RobotInit()
@@ -567,16 +655,23 @@ private:
 
 		// for drivetrain
 
-		switch(autoNumber)
+		if (autonTimer->Get() < 15.0)
 		{
-		case 0:
-			AutoForward();
-			break;
+			switch(autoNumber)
+			{
+			case 0:
+				AutoForward();
+				break;
 
-		case 1:
-			AutoForward();
-			break;
+			case 1:
+				AutoOneTote();
+				break;
+			case 2:
+				AutoBasic();
+
+			}
 		}
+
 		SmartDashboard::PutNumber("Left lift Encoder", liftEncoder_L->Get());
 		SmartDashboard::PutNumber("Right lift Encoder", liftEncoder_R->Get());
 		SmartDashboard::PutBoolean("Limit", ultrasonic_L->GetRangeInches());
@@ -696,7 +791,9 @@ private:
 			}
 		}
 		else if (relToteRunning) {
-			ReleaseTote();
+			if (ReleaseTote()) {
+				relToteRunning = false;
+			}
 		}
 		else // else default to regular user control
 		{
