@@ -259,18 +259,18 @@ private:
 		PWMlb->Set(direction*speedTurn);
 	}
 
-	void OutputStraightDrive(float direction, float speedStrDrive = .8) { // moves straight backward or forward indefinitely
+	void OutputStraightDrive(float direction, float speed = .8) { // moves straight backward or forward indefinitely
 		SetDriveEncAuto();
 
 		strCorrSign = (strRightEnc - strLeftEnc)/abs(strRightEnc - strLeftEnc); // store sign
 
 		strDifference = (float)(std::min(abs(strRightEnc - strLeftEnc)/100.0, 0.4)) * strCorrSign;
 
-		PWMlf->Set(direction*(speedStrDrive + strDifference));
-		PWMlb->Set(direction*(speedStrDrive + strDifference));
+		PWMlf->Set(direction*(speed + strDifference));
+		PWMlb->Set(direction*(speed + strDifference));
 
-		PWMrf->Set(direction*(speedStrDrive - strDifference));
-		PWMrb->Set(direction*(speedStrDrive - strDifference));
+		PWMrf->Set(direction*(speed - strDifference));
+		PWMrb->Set(direction*(speed - strDifference));
 
 	}
 
