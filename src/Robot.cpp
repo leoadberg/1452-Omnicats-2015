@@ -58,6 +58,7 @@ private:
 
 	RobotDrive *drive = new RobotDrive(PWMlf,PWMlb,PWMrf,PWMrb);
 	Gyro *gyro = new Gyro(0);
+	Gyro *eGyro = new Gyro(1);
 
 	Timer *autonTimer;
 	Timer *suctionTimer; // we're not using this right now, but we might in the future for whatever reason
@@ -92,6 +93,7 @@ private:
 
 	int intermediateGyro;
 	float gyroValue;
+	float eGyroValue;
 	const int fakeZero = 50;
 
 	// Smooth Start AND Smooth Stop 90-Align variables
@@ -303,10 +305,23 @@ private:
 
 	void ResetElevator() {
 
-		resetDifference = correction*std::min((float)abs(l_LiftEncoder-r_LiftEncoder)/50.0 + 0.5,1.0)*((l_LiftEncoder-r_LiftEncoder)/abs(l_LiftEncoder-r_LiftEncoder));
+		//resetDifference = correction*std::min((float)abs(l_LiftEncoder-r_LiftEncoder)/50.0 + 0.5,1.0)*((l_LiftEncoder-r_LiftEncoder)/abs(l_LiftEncoder-r_LiftEncoder));
+		float dirxtion = 1.0; // change this if backwards with respect to right/left
+		smoothStart = 0.4;
+
+		float bufferZ = 20.0;
+		float defP = .2;
+		float fix;
+
+		if (eGyroValue >= 0.0) {
+			fix = -dirxtion*std::min((abs((float)eGyro->GetAngle()))/bufferZ, defP);
+		}
+		else {
+			fix = dirxtion*std::min(abs((float)eGyro->GetAngle() - 360.0)/bufferZ, defP);
+		}
 
 		if (bottomLimit_L->Get()) {
-			OutputLift(-1.0, resetDifference);
+			OutputLift(-1.0, fix);
 			//OutputLiftRegular(-1.0, 0.7);
 		}
 		else {
@@ -603,14 +618,13 @@ private:
 	{
 		lw = LiveWindow::GetInstance();
 		gyro->InitGyro();
+		eGyro->InitGyro();
 	}
 
 	void AutonomousInit()
 	{
 		//testEncoder->Reset();
 		//int step = 0;
-
-
 		ResetDriveEncoders();
 
 		if (SmartDashboard::GetBoolean("DB/Button 0", false)) {
@@ -630,7 +644,11 @@ private:
 
 		autonTimer = new Timer();
 		autonTimer->Start();
+
+		gyro->InitGyro();
+		eGyro->InitGyro();
 		gyroValue = 0;
+		eGyroValue = 0;
 	}
 
 	void AutonomousPeriodic()
@@ -683,7 +701,9 @@ private:
 		liftEncoder_L->Reset();
 		liftEncoder_R->Reset();
 		gyro->Reset();
+		eGyro->Reset();
 		gyroValue = 0;
+		eGyroValue = 0;
 
 		ResetDriveEncoders();
 
@@ -728,6 +748,9 @@ private:
 
 		intermediateGyro = ((int)gyro->GetAngle() + 3600000) % 360;
 		gyroValue = (float)intermediateGyro; // it's a FLOAT
+
+		intermediateGyro = ((int)eGyro->GetAngle() + 3600000) % 360;
+		eGyroValue = (float)intermediateGyro; // it's a FLOAT
 
 		l_LiftEncoder = -1*(liftEncoder_L->Get()) + fakeZero;
 		r_LiftEncoder = (liftEncoder_R->Get()) + fakeZero;
@@ -900,7 +923,6 @@ private:
 				pistonsOn = !pistonsOn;
 			}
 
-
 			// elevator lift code with levels, smooth start and smooth stop
 
 			if (auxStick->GetRawButton(resetElevatorButton)) {
@@ -994,6 +1016,7 @@ private:
 		SmartDashboard::PutNumber("Left lift Enc", l_LiftEncoder);
 		SmartDashboard::PutNumber("Right lift Enc", r_LiftEncoder);
 		SmartDashboard::PutNumber("Gyro", gyroValue);
+		SmartDashboard::PutNumber("Elevator Gyro", eGyroValue);
 		SmartDashboard::PutNumber("Left Ultrasonic", ultrasonic_L->GetRangeInches());
 		SmartDashboard::PutNumber("Right Ultrasonic", ultrasonic_R->GetRangeInches());
 
