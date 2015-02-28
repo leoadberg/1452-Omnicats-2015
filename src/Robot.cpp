@@ -94,7 +94,8 @@ private:
 	int intermediateGyro;
 	float gyroValue;
 	float eGyroValue;
-	const int fakeZero = 50;
+	int fakeZero_L = 50;
+	int fakeZero_R = fakeZero_L;
 
 	// Smooth Start AND Smooth Stop 90-Align variables
 	const float northDegrees = 0.0; // number of encoder ticks per 1 encoder height
@@ -148,6 +149,26 @@ private:
 	int stepPneum = 0;
 
 	// function global variables:
+
+	//ResetElevator and SlipCorrect:
+	float dirxtion = 1.0; // change this if backwards with respect to right/left
+
+	float bufferZ = 20.0;
+	float defP = .2;
+
+	float fix;
+	//SlipCorrect: automatically re-calibrate lift encoders with eGyro
+	bool slipCorrectRunning = false;
+	int stepSlip = 0;
+
+	float encoSlipThresh = 13.0;
+	float gyroSlipThresh = 5.0;
+	float gyroAlignThresh = 2.5;
+
+	bool leftSide = 0;
+
+	float slipAlignSpeed = .4;
+
 	//OutputStraightDrive: go forward and backward straight with encoders
 	float speedStrDrive = .9;
 
@@ -306,18 +327,14 @@ private:
 	void ResetElevator() {
 
 		//resetDifference = correction*std::min((float)abs(l_LiftEncoder-r_LiftEncoder)/50.0 + 0.5,1.0)*((l_LiftEncoder-r_LiftEncoder)/abs(l_LiftEncoder-r_LiftEncoder));
-		float dirxtion = 1.0; // change this if backwards with respect to right/left
+
 		smoothStart = 0.4;
 
-		float bufferZ = 20.0;
-		float defP = .2;
-		float fix;
-
-		if (eGyroValue >= 0.0) {
-			fix = -dirxtion*std::min((abs((float)eGyro->GetAngle()))/bufferZ, defP);
+		if (eGyroValue >= 0.0 && eGyroValue <= 80.0) {
+			fix = -dirxtion*std::min(abs(eGyroValue)/bufferZ, defP);
 		}
 		else {
-			fix = dirxtion*std::min(abs((float)eGyro->GetAngle() - 360.0)/bufferZ, defP);
+			fix = dirxtion*std::min(abs(eGyroValue - 360.0)/bufferZ, defP);
 		}
 
 		if (bottomLimit_L->Get()) {
@@ -329,6 +346,72 @@ private:
 			liftEncoder_R->Reset();
 		}
 	}
+
+	void SlipCorrect() {
+
+		smoothStart = 0.5;
+
+		//OutputLiftRegular(-1.0, 0.7);
+		switch(stepSlip)
+		{
+		case 0:
+			toteTimer->Reset();
+			toteTimer->Start();
+			if (eGyroValue > 0.0 && eGyroValue < 80.0) {
+				leftSide = true;
+			}
+			else {
+				leftSide = false;
+			}
+			stepSlip++;
+			break;
+		}
+		if (leftSide)
+		{
+			switch(stepSlip) {
+			case 1:
+				fix = std::min(abs(eGyroValue)/bufferZ, defP);
+				lift_L->Set(1.0*(smoothStart + fix)*hardCorrection);
+
+				if (((eGyroValue < gyroAlignThresh) || (eGyroValue > 360.0 - gyroAlignThresh)) || toteTimer->Get() < 10.0) {
+					stepSlip++;
+					getToteLastTime += toteTimer->Get();
+				}
+				break;
+			case 2:
+				fakeZero_L = r_LiftEncoder + liftEncoder_L->Get();
+				stepSlip++;
+				break;
+			}
+		}
+		else
+		{
+			switch(stepSlip) {
+			case 1:
+				fix = std::min(abs(eGyroValue)/bufferZ, defP);
+				lift_R->Set(-1.0*(smoothStart + fix));
+
+				if (((eGyroValue < gyroAlignThresh) || (eGyroValue > 360.0 - gyroAlignThresh)) || toteTimer->Get() > 10.0) {
+					stepSlip++;
+					getToteLastTime += toteTimer->Get();
+				}
+				break;
+			case 2:
+				fakeZero_R = l_LiftEncoder - liftEncoder_R->Get();
+				stepSlip++;
+				break;
+			}
+		}
+
+		switch (stepSlip)
+		{
+		case 3:
+			slipCorrectRunning = false;
+			stepSlip = 0;
+			getToteLastTime = 0.0;
+		}
+	}
+
 
 	bool ReleaseTote() {
 		switch(stepRelTote)
@@ -656,8 +739,8 @@ private:
 		intermediateGyro = ((int)gyro->GetAngle() + 3600000) % 360;
 		gyroValue = (float)intermediateGyro; // it's a FLOAT
 
-		l_LiftEncoder = -1*(liftEncoder_L->Get()) + fakeZero;
-		r_LiftEncoder = (liftEncoder_R->Get()) + fakeZero;
+		l_LiftEncoder = -1*(liftEncoder_L->Get()) + fakeZero_L;
+		r_LiftEncoder = (liftEncoder_R->Get()) + fakeZero_R;
 
 		r_frontEncoder = rightFrontEncoder->Get();
 		l_frontEncoder = leftFrontEncoder->Get();
@@ -752,8 +835,8 @@ private:
 		intermediateGyro = ((int)eGyro->GetAngle() + 3600000) % 360;
 		eGyroValue = (float)intermediateGyro; // it's a FLOAT
 
-		l_LiftEncoder = -1*(liftEncoder_L->Get()) + fakeZero;
-		r_LiftEncoder = (liftEncoder_R->Get()) + fakeZero;
+		l_LiftEncoder = -1*(liftEncoder_L->Get()) + fakeZero_L;
+		r_LiftEncoder = (liftEncoder_R->Get()) + fakeZero_R;
 
 		r_frontEncoder = rightFrontEncoder->Get();
 		l_frontEncoder = leftFrontEncoder->Get();
@@ -775,25 +858,26 @@ private:
 		rightFront->Set(PWMrf->Get());
 		rightBack->Set(-PWMrb->Get());
 
+		// user control select what autonomous programs to run
 
-		if (driveStick->GetRawButton(getToteButton)) {
+		if (driveStick->GetRawButton(getToteButton) && !slipCorrectRunning) {
 			getToteRunning = true;
 		}
-		else if (driveStick->GetRawButton(relToteButton) && !getToteRunning && !acqRunning) {
+		else if (driveStick->GetRawButton(relToteButton) && !getToteRunning && !acqRunning && !slipCorrectRunning) {
 			relToteRunning = true;
 		}
-		else if (driveStick->GetPOV() == acqStart_L && !relToteRunning && !getToteRunning) {
+		else if (driveStick->GetPOV() == acqStart_L && !relToteRunning && !getToteRunning && !slipCorrectRunning) {
 			acqRunning = 1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
-		else if (driveStick->GetPOV() == acqStart_R && !relToteRunning && !getToteRunning) {
+		else if (driveStick->GetPOV() == acqStart_R && !relToteRunning && !getToteRunning && !slipCorrectRunning) {
 			acqRunning = -1;
 			stepAcq = 0; // reset to beginning of routine
 			AcqInitialize();
 		}
 
-		if (driveStick->GetRawButton(acqStop)) {
+		if (driveStick->GetRawButton(acqStop)) { // override and stop all autonomous routines
 			acqRunning = 0; // stop running
 			stepAcq = 0;    // reset to first step
 
@@ -802,18 +886,22 @@ private:
 
 			relToteRunning = false;
 			stepRelTote = 0;
+
+			slipCorrectRunning = false;
+			stepSlip = 0;
 		}
 
 		// run what has been pressed to run
-		if (acqRunning != 0) {
+
+		if (acqRunning != 0 && !slipCorrectRunning) {
 			AcqRoutine();
 		}
-		else if (getToteRunning) {
+		else if (getToteRunning && !slipCorrectRunning) {
 			if (AcqGetTote()) {
 				getToteRunning = false;
 			}
 		}
-		else if (relToteRunning) {
+		else if (relToteRunning && !slipCorrectRunning) {
 			if (ReleaseTote()) {
 				relToteRunning = false;
 			}
@@ -927,6 +1015,14 @@ private:
 
 			if (auxStick->GetRawButton(resetElevatorButton)) {
 				ResetElevator();
+			}
+			else if( ((abs(eGyroValue - 0.0) > gyroSlipThresh && eGyroValue < 80.0) || (abs(eGyroValue - 360.0) > gyroSlipThresh && eGyroValue > 280.0))
+				     && abs(l_frontEncoder - r_frontEncoder) < encoSlipThresh) {
+				slipCorrectRunning = true;
+
+			}
+			else if (slipCorrectRunning) {
+				SlipCorrect();
 			}
 			else
 			{
