@@ -123,7 +123,7 @@ private:
 	const int relToteButton = 8;
 	const float acqStart_L = 90.0; // right button
 	const float acqStart_R = 270.0; // left button
-	const int acqStop = 9;
+	const int killSwitch = 9;
 	const int resetGyroButton = 10; // reset Gyro
 	// joysticks are for mecanum Orient Drive
 
@@ -752,7 +752,7 @@ private:
 		leftFront->Set(PWMlf->Get());
 		leftBack->Set(PWMlb->Get());
 		rightFront->Set(PWMrf->Get());
-		rightBack->Set(-PWMrb->Get());
+		rightBack->Set(PWMrb->Get());
 
 		// for drivetrain
 
@@ -856,7 +856,7 @@ private:
 		leftFront->Set(PWMlf->Get());
 		leftBack->Set(PWMlb->Get());
 		rightFront->Set(PWMrf->Get());
-		rightBack->Set(-PWMrb->Get());
+		rightBack->Set(PWMrb->Get());
 
 		// user control select what autonomous programs to run
 
@@ -877,7 +877,7 @@ private:
 			AcqInitialize();
 		}
 
-		if (driveStick->GetRawButton(acqStop)) { // override and stop all autonomous routines
+		if (driveStick->GetRawButton(killSwitch)) { // override and stop all autonomous routines
 			acqRunning = 0; // stop running
 			stepAcq = 0;    // reset to first step
 
