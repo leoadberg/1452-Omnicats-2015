@@ -6,7 +6,6 @@
 class Robot: public IterativeRobot
 {
 private:
-
 	LiveWindow *lw;
 
 	Compressor *c = new Compressor(0);
@@ -15,7 +14,6 @@ private:
 	bool lastSuctionButton = false;
 
 	DoubleSolenoid *piston1 = new DoubleSolenoid(1,2);
-	//DoubleSolenoid *piston2 = new DoubleSolenoid(3,4);
 	bool pistonsOn = false;
 	bool lastPistonButton = false;
 
@@ -186,7 +184,6 @@ private:
 	float avgDriveEnc = 0.0;
 
 	bool firstCall = true;
-
 	//
 	Timer *toteTimer = new Timer();
 	const float toteExtendTime = 1.7;
@@ -355,13 +352,14 @@ private:
 		switch(stepSlip)
 		{
 		case 0:
+			getToteLastTime = 0;
 			toteTimer->Reset();
 			toteTimer->Start();
 			if (eGyroValue > 0.0 && eGyroValue < 80.0) {
-				leftSide = true;
+				leftSide = true; // move left side up because it has slipped down
 			}
 			else {
-				leftSide = false;
+				leftSide = false; // otherwise move right side up because it has slipped down
 			}
 			stepSlip++;
 			break;
@@ -373,7 +371,7 @@ private:
 				fix = std::min(abs(eGyroValue)/bufferZ, defP);
 				lift_L->Set(1.0*(smoothStart + fix)*hardCorrection);
 
-				if (((eGyroValue < gyroAlignThresh) || (eGyroValue > 360.0 - gyroAlignThresh)) || toteTimer->Get() < 10.0) {
+				if (((eGyroValue < gyroAlignThresh) || (abs(eGyroValue - 360.0) < gyroAlignThresh)) || toteTimer->Get() > 10.0) {
 					stepSlip++;
 					getToteLastTime += toteTimer->Get();
 				}
@@ -391,7 +389,7 @@ private:
 				fix = std::min(abs(eGyroValue)/bufferZ, defP);
 				lift_R->Set(-1.0*(smoothStart + fix));
 
-				if (((eGyroValue < gyroAlignThresh) || (eGyroValue > 360.0 - gyroAlignThresh)) || toteTimer->Get() > 10.0) {
+				if (((eGyroValue < gyroAlignThresh) || (abs(eGyroValue - 360.0) > gyroAlignThresh)) || toteTimer->Get() > 10.0) {
 					stepSlip++;
 					getToteLastTime += toteTimer->Get();
 				}
@@ -408,7 +406,7 @@ private:
 		case 3:
 			slipCorrectRunning = false;
 			stepSlip = 0;
-			getToteLastTime = 0.0;
+			getToteLastTime = toteTimer->Get();
 		}
 	}
 
@@ -1016,7 +1014,7 @@ private:
 			if (auxStick->GetRawButton(resetElevatorButton)) {
 				ResetElevator();
 			}
-			else if( ((abs(eGyroValue - 0.0) > gyroSlipThresh && eGyroValue < 80.0) || (abs(eGyroValue - 360.0) > gyroSlipThresh && eGyroValue > 280.0))
+			else if(!slipCorrectRunning && ((abs(eGyroValue - 0.0) > gyroSlipThresh && eGyroValue < 80.0) || (abs(eGyroValue - 360.0) > gyroSlipThresh && eGyroValue > 280.0))
 				     && abs(l_frontEncoder - r_frontEncoder) < encoSlipThresh) {
 				slipCorrectRunning = true;
 
