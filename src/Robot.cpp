@@ -160,7 +160,7 @@ private:
 	int stepSlip = 0;
 
 	float encoSlipThresh = 13.0;
-	float gyroSlipThresh = 5.0;
+	float gyroSlipThresh = 10.0;
 	float gyroAlignThresh = 2.5;
 
 	bool leftSide = 0;
@@ -1020,7 +1020,7 @@ private:
 
 			}
 			else if (slipCorrectRunning) {
-				SlipCorrect();
+				//SlipCorrect();
 			}
 			else
 			{
@@ -1120,6 +1120,7 @@ private:
 		SmartDashboard::PutNumber("Back Left", l_backEncoder);
 		SmartDashboard::PutBoolean("Suction Cups On:", suctionCupsOn);
 		SmartDashboard::PutBoolean("Pistons Extended:", pistonsOn);
+		SmartDashboard::PutBoolean("SlipCorrect Running:", slipCorrectRunning);
 	}
 
 	void TestPeriodic()
