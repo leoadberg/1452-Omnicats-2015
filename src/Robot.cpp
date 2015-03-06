@@ -26,8 +26,13 @@ private:
 	Ultrasonic *ultrasonic_L = new Ultrasonic(6, 7); // CHANGE PORTS
 	Ultrasonic *ultrasonic_R = new Ultrasonic(8, 9); // CHANGE PORTS
 
+	/*//ROBOT 1
 	Encoder *liftEncoder_L = new Encoder(0, 1, true);
-	Encoder *liftEncoder_R = new Encoder(3, 4, true); // newMotorTest encoder
+	Encoder *liftEncoder_R = new Encoder(3, 4, true);
+	*/
+	//ROBOT 2
+	Encoder *liftEncoder_L = new Encoder(10, 11, true);
+	Encoder *liftEncoder_R = new Encoder(12, 13, true);
 
 	/*
 	Encoder *leftFrontEncoder = new Encoder(5, 6, true);
@@ -1014,14 +1019,19 @@ private:
 			if (auxStick->GetRawButton(resetElevatorButton)) {
 				ResetElevator();
 			}
+			/*
 			else if(!slipCorrectRunning && ((abs(eGyroValue - 0.0) > gyroSlipThresh && eGyroValue < 80.0) || (abs(eGyroValue - 360.0) > gyroSlipThresh && eGyroValue > 280.0))
 				     && abs(l_frontEncoder - r_frontEncoder) < encoSlipThresh) {
 				slipCorrectRunning = true;
-
+				toteTimer->Reset();
+				toteTimer->Start();
 			}
 			else if (slipCorrectRunning) {
+				if (toteTimer->Get() > 3.0) {
+					slipCorrectRunning = false;
+				}
 				//SlipCorrect();
-			}
+			}*/
 			else
 			{
 				resetDifference = correction*smoothStart*std::min((float)abs(l_LiftEncoder-r_LiftEncoder)/50.0 + 0.5,1.0);
@@ -1118,6 +1128,7 @@ private:
 		SmartDashboard::PutNumber("Front Left", l_frontEncoder);
 		SmartDashboard::PutNumber("Back Right", r_backEncoder);
 		SmartDashboard::PutNumber("Back Left", l_backEncoder);
+		SmartDashboard::PutBoolean("Bottom Limit", bottomLimit_L);
 		SmartDashboard::PutBoolean("Suction Cups On:", suctionCupsOn);
 		SmartDashboard::PutBoolean("Pistons Extended:", pistonsOn);
 		SmartDashboard::PutBoolean("SlipCorrect Running:", slipCorrectRunning);
