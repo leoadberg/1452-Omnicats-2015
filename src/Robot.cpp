@@ -1125,6 +1125,7 @@ private:
 		SmartDashboard::PutNumber("Right lift Enc", r_LiftEncoder);
 		SmartDashboard::PutNumber("Gyro", gyroValue);
 		SmartDashboard::PutNumber("Elevator Gyro", eGyroValue);
+		SmartDashboard::PutNumber("Elevator Gyro Raw", eGyro->GetAngle());
 		SmartDashboard::PutNumber("Left Ultrasonic", ultrasonic_L->GetRangeInches());
 		SmartDashboard::PutNumber("Right Ultrasonic", ultrasonic_R->GetRangeInches());
 
