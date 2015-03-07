@@ -139,8 +139,10 @@ private:
 	const int pos4Button = 4; // for elevator
 	const int resetElevatorButton = 9;
 	const int resetEncodersButton = 10; // resets elevator motor encoders
+	const float slipCorrectButton = 0.0;
 	const int suctionCupsButton = 5;
 	const int pistonButton = 7;
+
 
 	const float speedM = .8; // default testing drivetrain max speed
 	float resetDifference = 0.0;
@@ -328,7 +330,7 @@ private:
 
 	void ResetElevator() {
 
-		//resetDifference = correction*std::min((float)abs(l_LiftEncoder-r_LiftEncoder)/50.0 + 0.5,1.0)*((l_LiftEncoder-r_LiftEncoder)/abs(l_LiftEncoder-r_LiftEncoder));
+		resetDifference = correction*std::min((float)abs(l_LiftEncoder-r_LiftEncoder)/50.0 + 0.5,1.0)*((l_LiftEncoder-r_LiftEncoder)/abs(l_LiftEncoder-r_LiftEncoder));
 
 		smoothStart = 0.4;
 
@@ -340,12 +342,13 @@ private:
 		}
 
 		if (bottomLimit_L->Get()) {
-			OutputLift(-1.0, fix);
+			OutputLift(-1.0, resetDifference);
 			//OutputLiftRegular(-1.0, 0.7);
 		}
 		else {
 			liftEncoder_L->Reset();
 			liftEncoder_R->Reset();
+			OutputLift(0.0, 0.0);
 		}
 	}
 
@@ -360,12 +363,14 @@ private:
 			getToteLastTime = 0;
 			toteTimer->Reset();
 			toteTimer->Start();
+
 			if (eGyroValue > 0.0 && eGyroValue < 80.0) {
 				leftSide = true; // move left side up because it has slipped down
 			}
 			else {
 				leftSide = false; // otherwise move right side up because it has slipped down
 			}
+
 			stepSlip++;
 			break;
 		}
@@ -1019,19 +1024,18 @@ private:
 			if (auxStick->GetRawButton(resetElevatorButton)) {
 				ResetElevator();
 			}
-			/*
-			else if(!slipCorrectRunning && ((abs(eGyroValue - 0.0) > gyroSlipThresh && eGyroValue < 80.0) || (abs(eGyroValue - 360.0) > gyroSlipThresh && eGyroValue > 280.0))
-				     && abs(l_frontEncoder - r_frontEncoder) < encoSlipThresh) {
-				slipCorrectRunning = true;
-				toteTimer->Reset();
-				toteTimer->Start();
-			}
-			else if (slipCorrectRunning) {
-				if (toteTimer->Get() > 3.0) {
-					slipCorrectRunning = false;
+
+			else if(auxStick->GetPOV() == slipCorrectButton) {
+				if(!slipCorrectRunning && ((abs(eGyroValue - 0.0) > gyroSlipThresh && eGyroValue < 80.0) || (abs(eGyroValue - 360.0) > gyroSlipThresh && eGyroValue > 280.0))
+								     && abs(l_frontEncoder - r_frontEncoder) < encoSlipThresh) {
+
+					slipCorrectRunning = true;
 				}
-				//SlipCorrect();
-			}*/
+
+				if(slipCorrectRunning) {
+					SlipCorrect();
+				}
+			}
 			else
 			{
 				resetDifference = correction*smoothStart*std::min((float)abs(l_LiftEncoder-r_LiftEncoder)/50.0 + 0.5,1.0);
@@ -1128,7 +1132,7 @@ private:
 		SmartDashboard::PutNumber("Front Left", l_frontEncoder);
 		SmartDashboard::PutNumber("Back Right", r_backEncoder);
 		SmartDashboard::PutNumber("Back Left", l_backEncoder);
-		SmartDashboard::PutBoolean("Bottom Limit", bottomLimit_L);
+		SmartDashboard::PutBoolean("Bottom Limit", bottomLimit_L->Get());
 		SmartDashboard::PutBoolean("Suction Cups On:", suctionCupsOn);
 		SmartDashboard::PutBoolean("Pistons Extended:", pistonsOn);
 		SmartDashboard::PutBoolean("SlipCorrect Running:", slipCorrectRunning);
