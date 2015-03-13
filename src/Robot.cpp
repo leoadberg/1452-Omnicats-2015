@@ -26,15 +26,15 @@ private:
 	Ultrasonic *ultrasonic_L = new Ultrasonic(6, 7); // CHANGE PORTS
 	Ultrasonic *ultrasonic_R = new Ultrasonic(8, 9); // CHANGE PORTS
 
-	/*//ROBOT 1
+	//ROBOT 1
 	Encoder *liftEncoder_L = new Encoder(0, 1, true);
 	Encoder *liftEncoder_R = new Encoder(3, 4, true);
-	*/
+	/*
 	//ROBOT 2
 	Encoder *liftEncoder_L = new Encoder(10, 11, true);
 	Encoder *liftEncoder_R = new Encoder(12, 13, true);
-
-	/*
+*/
+	/* ?
 	Encoder *leftFrontEncoder = new Encoder(5, 6, true);
 	Encoder *rightFrontEncoder = new Encoder(7, 8, true);
 	*/
@@ -71,7 +71,7 @@ private:
 	// Smooth Start elevator variables
 	const int toteHeight = 517; // number of encoder ticks per 1 encoder height
 	const int stopBuffer = 100; // encoder ticks away from stopping point that smoothStop starts smoothness
-	const int maxHeight = 2650; // encoder ticks from very bottom to very top. This is exact.
+	const int maxHeight = 2650; // encoder ticks from very bottom to very top. This is being worked out.
 	const int stopMargin = 200; // encoder ticks distance away from top for stopping (it's a safety buffer)
 	const int stopHeight = maxHeight - stopMargin; // sets the stop height
 
@@ -142,6 +142,8 @@ private:
 	const float slipCorrectButton = 0.0;
 	const int suctionCupsButton = 5;
 	const int pistonButton = 7;
+
+	const float turnSpeed = .7;
 
 
 	const float speedM = .8; // default testing drivetrain max speed
@@ -716,7 +718,7 @@ private:
 	{
 		//testEncoder->Reset();
 		//int step = 0;
-		ResetDriveEncoders();
+		/*ResetDriveEncoders();
 
 		if (SmartDashboard::GetBoolean("DB/Button 0", false)) {
 			autoNumber = 0;
@@ -731,22 +733,24 @@ private:
 			autoNumber = 3;
 		}
 
-		stepDrive = 0;
+		stepDrive = 0;*/
 
 		autonTimer = new Timer();
 		autonTimer->Start();
 
+		/*
 		gyro->InitGyro();
 		eGyro->InitGyro();
 		gyroValue = 0;
-		eGyroValue = 0;
+		eGyroValue = 0; */
 	}
 
 	void AutonomousPeriodic()
 	{
-		intermediateGyro = ((int)gyro->GetAngle() + 3600000) % 360;
-		gyroValue = (float)intermediateGyro; // it's a FLOAT
+		//intermediateGyro = ((int)gyro->GetAngle() + 3600000) % 360;
+		//gyroValue = (float)intermediateGyro; // it's a FLOAT
 
+		/*
 		l_LiftEncoder = -1*(liftEncoder_L->Get()) + fakeZero_L;
 		r_LiftEncoder = (liftEncoder_R->Get()) + fakeZero_R;
 
@@ -754,16 +758,36 @@ private:
 		l_frontEncoder = leftFrontEncoder->Get();
 		r_backEncoder = rightBackEncoder->Get();
 		l_backEncoder = leftBackEncoder->Get();
+*/
+		//suctionCups->Set(suctionCupsOn);
 
-		suctionCups->Set(suctionCupsOn);
+		//AutoForward();
 
-		leftFront->Set(PWMlf->Get());
-		leftBack->Set(PWMlb->Get());
-		rightFront->Set(PWMrf->Get());
-		rightBack->Set(PWMrb->Get());
+		drive->MecanumDrive_Cartesian(0.0,0.0,0.0);
+
+		if (autonTimer->Get() < 3.0) {
+
+			float s = 0.4;
+			leftFront->Set(s);
+			leftBack->Set(s);
+			rightFront->Set(-s);
+			rightBack->Set(-s);
+		}
+		else {
+			float s = 0.0;
+			leftFront->Set(s);
+			leftBack->Set(s);
+			rightFront->Set(s);
+			rightBack->Set(s);
+		}
+
+//		leftFront->Set(PWMlf->Get());
+//		leftBack->Set(PWMlb->Get());
+//		rightFront->Set(PWMrf->Get());
+//		rightBack->Set(PWMrb->Get());
 
 		// for drivetrain
-
+/*
 		if (autonTimer->Get() < 15.0)
 		{
 			switch(autoNumber)
@@ -780,10 +804,11 @@ private:
 
 			}
 		}
+		*/
 
-		SmartDashboard::PutNumber("Left lift Encoder", liftEncoder_L->Get());
-		SmartDashboard::PutNumber("Right lift Encoder", liftEncoder_R->Get());
-		SmartDashboard::PutBoolean("Limit", ultrasonic_L->GetRangeInches());
+//		SmartDashboard::PutNumber("Left lift Encoder", liftEncoder_L->Get());
+//		SmartDashboard::PutNumber("Right lift Encoder", liftEncoder_R->Get());
+//		SmartDashboard::PutNumber("ultrasonic", ultrasonic_L->GetRangeInches());
 	}
 
 	void TeleopInit()
@@ -982,7 +1007,7 @@ private:
 				}
 			}
 			else {
-				drive->MecanumDrive_Cartesian(speedM*driveStick->GetX(),speedM*driveStick->GetY(),speedM*driveStick->GetZ(), gyro->GetAngle());
+				drive->MecanumDrive_Cartesian(speedM*driveStick->GetX(),speedM*driveStick->GetY(),speedM*driveStick->GetZ()*turnSpeed, gyro->GetAngle());
 
 				smoothAlign = startAlignSpeed;
 				//OutputAllDrive(0.0);
