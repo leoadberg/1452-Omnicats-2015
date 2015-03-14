@@ -8,6 +8,9 @@ class Robot: public IterativeRobot
 private:
 	LiveWindow *lw;
 
+	bool orientEnabled = false;
+	bool lastOrientButton = false;
+
 	Compressor *c = new Compressor(0);
 	Solenoid *suctionCups = new Solenoid(0);
 	bool suctionCupsOn = false;
@@ -126,8 +129,10 @@ private:
 	const int relToteButton = 8;
 	const float acqStart_L = 90.0; // right button
 	const float acqStart_R = 270.0; // left button
-	const int killSwitch = 9;
+	//const int killSwitch = 9;
+	const int killSwitch = 5;
 	const int resetGyroButton = 10; // reset Gyro
+	const int orientToggleButton = 9;
 	// joysticks are for mecanum Orient Drive
 
 	//auxStick buttons
@@ -718,8 +723,8 @@ private:
 	{
 		//testEncoder->Reset();
 		//int step = 0;
-		/*ResetDriveEncoders();
-
+		//ResetDriveEncoders();
+/*
 		if (SmartDashboard::GetBoolean("DB/Button 0", false)) {
 			autoNumber = 0;
 		}
@@ -734,6 +739,8 @@ private:
 		}
 
 		stepDrive = 0;*/
+		liftEncoder_L->Reset();
+		liftEncoder_R->Reset();
 
 		autonTimer = new Timer();
 		autonTimer->Start();
@@ -765,14 +772,31 @@ private:
 
 		drive->MecanumDrive_Cartesian(0.0,0.0,0.0);
 
-		if (autonTimer->Get() < 3.0) {
-
+		if (autonTimer->Get() < 3.2) {
 			float s = 0.4;
 			leftFront->Set(s);
 			leftBack->Set(s);
 			rightFront->Set(-s);
 			rightBack->Set(-s);
 		}
+
+		else if (autonTimer->Get() < 4.1)
+		{
+			float s = 0.4;
+			leftFront->Set(s);
+			leftBack->Set(s);
+			rightFront->Set(s);
+			rightBack->Set(s);
+		}
+		/*
+		else if (autonTimer->Get() < 15.0){
+			ResetElevator();
+			float s = 0.0;
+			leftFront->Set(s);
+			leftBack->Set(s);
+			rightFront->Set(s);
+			rightBack->Set(s);
+		} */
 		else {
 			float s = 0.0;
 			leftFront->Set(s);
@@ -809,6 +833,7 @@ private:
 //		SmartDashboard::PutNumber("Left lift Encoder", liftEncoder_L->Get());
 //		SmartDashboard::PutNumber("Right lift Encoder", liftEncoder_R->Get());
 //		SmartDashboard::PutNumber("ultrasonic", ultrasonic_L->GetRangeInches());
+		SmartDashboard::PutBoolean("Bottom Limit", bottomLimit_L->Get());
 	}
 
 	void TeleopInit()
@@ -1007,8 +1032,11 @@ private:
 				}
 			}
 			else {
-				drive->MecanumDrive_Cartesian(speedM*driveStick->GetX(),speedM*driveStick->GetY(),speedM*driveStick->GetZ()*turnSpeed, gyro->GetAngle());
-
+				if (orientEnabled){
+					drive->MecanumDrive_Cartesian(speedM*driveStick->GetX(),speedM*driveStick->GetY(),speedM*driveStick->GetZ()*turnSpeed, 0.0);
+				} else {
+					drive->MecanumDrive_Cartesian(speedM*driveStick->GetX(),speedM*driveStick->GetY(),speedM*driveStick->GetZ()*turnSpeed, gyro->GetAngle());
+				}
 				smoothAlign = startAlignSpeed;
 				//OutputAllDrive(0.0);
 			}
@@ -1042,6 +1070,14 @@ private:
 			if (auxStick->GetRawButton(pistonButton) && lastPistonButton) {
 				lastPistonButton = false;
 				pistonsOn = !pistonsOn;
+			}
+
+			if (!driveStick->GetRawButton(orientToggleButton)) {
+							lastOrientButton = true;
+			}
+			if (auxStick->GetRawButton(orientToggleButton) && lastOrientButton) {
+				lastOrientButton = false;
+				orientEnabled = !orientEnabled;
 			}
 
 			// elevator lift code with levels, smooth start and smooth stop
@@ -1146,13 +1182,13 @@ private:
 			}
 		}
 
-		SmartDashboard::PutNumber("Left lift Enc", l_LiftEncoder);
-		SmartDashboard::PutNumber("Right lift Enc", r_LiftEncoder);
-		SmartDashboard::PutNumber("Gyro", gyroValue);
+		SmartDashboard::PutNumber("Lift Left", l_LiftEncoder);
+		SmartDashboard::PutNumber("Lift Right", r_LiftEncoder);
+		SmartDashboard::PutNumber("Gyro:", gyroValue);
 		SmartDashboard::PutNumber("Elevator Gyro", eGyroValue);
 		SmartDashboard::PutNumber("Elevator Gyro Raw", eGyro->GetAngle());
 		SmartDashboard::PutNumber("Left Ultrasonic", ultrasonic_L->GetRangeInches());
-		SmartDashboard::PutNumber("Right Ultrasonic", ultrasonic_R->GetRangeInches());
+		SmartDashboard::PutNumber("Ultrasonic", ultrasonic_R->GetRangeInches());
 
 		SmartDashboard::PutNumber("Front Right", r_frontEncoder);
 		SmartDashboard::PutNumber("Front Left", l_frontEncoder);
@@ -1162,6 +1198,7 @@ private:
 		SmartDashboard::PutBoolean("Suction Cups On:", suctionCupsOn);
 		SmartDashboard::PutBoolean("Pistons Extended:", pistonsOn);
 		SmartDashboard::PutBoolean("SlipCorrect Running:", slipCorrectRunning);
+		SmartDashboard::PutBoolean("OrientDrive On:", orientEnabled);
 	}
 
 	void TestPeriodic()
