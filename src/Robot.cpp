@@ -772,14 +772,14 @@ private:
 
 		drive->MecanumDrive_Cartesian(0.0,0.0,0.0);
 
-		if (autonTimer->Get() < 3.2) {
+		if (autonTimer->Get() < 3.5) {
 			float s = 0.4;
 			leftFront->Set(s);
 			leftBack->Set(s);
 			rightFront->Set(-s);
 			rightBack->Set(-s);
 		}
-
+/*
 		else if (autonTimer->Get() < 4.1)
 		{
 			float s = 0.4;
@@ -788,7 +788,7 @@ private:
 			rightFront->Set(s);
 			rightBack->Set(s);
 		}
-		/*
+
 		else if (autonTimer->Get() < 15.0){
 			ResetElevator();
 			float s = 0.0;
